@@ -1,0 +1,56 @@
+﻿@page "/AppVersionView/{AppId:int}/{AppVersionId:int}"
+@using VersioningAppBlazorServer.Models
+@using VersioningAppBlazorServer.Utils
+@rendermode InteractiveServer
+
+@inject NavigationManager Navigation
+@inject IVersioningService VersioningService
+
+<PageBody>
+    <Body>
+
+        <VersioningAppBlazorServer.Components.VersioningComp.ViewAppVersion @ref=@viewAppVersion
+                                                                OnAppVersionClicked="@OnAppVersionClicked" />
+    </Body>
+</PageBody>
+
+@code {
+    [Parameter]
+    public int AppId { get; set; }
+    [Parameter]
+    public int AppVersionId { get; set; }
+
+    private VersioningAppBlazorServer.Components.VersioningComp.ViewAppVersion viewAppVersion = new();
+
+    private Application? selectedApp;
+    private AppVersion? selectedAppVersion;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (viewAppVersion == null || selectedAppVersion == null)
+            return;
+
+        var compatibleApps = await VersioningService.GetCompatibilityApplications(AppVersionId);
+
+        viewAppVersion.AddParms(selectedAppVersion, selectedApp?.Name, compatibleApps.Value ?? []);
+
+        await base.OnAfterRenderAsync(firstRender);
+    }
+
+    private void OnAppVersionClicked(KeyValuePair<int, int> appWithVersion)
+    {
+        Navigation.NavigateTo($"AppVersionView/{appWithVersion.Key}/{appWithVersion.Value}");
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var app = await VersioningService.GetApplicationById(AppId);
+        if (app.IsSuccess)
+            selectedApp = app.Value;
+
+        var version = await VersioningService.GetAppVersion(AppVersionId);
+        if (version.IsSuccess)
+            selectedAppVersion = version.Value;
+        await base.OnInitializedAsync();
+    }
+}

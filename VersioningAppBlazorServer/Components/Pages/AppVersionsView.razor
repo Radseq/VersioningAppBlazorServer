@@ -1,0 +1,103 @@
+﻿@page "/AppVersionsView"
+@using VersioningAppBlazorServer.Models
+@using VersioningAppBlazorServer.Models.UI
+@using VersioningAppBlazorServer.Utils
+
+@inject IVersioningService VersioningService
+
+@rendermode InteractiveServer
+
+<PageBody>
+    <Body>
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center"
+                     JustifyContent="JustifyContent.Center" Gap="0.5rem" class="rz-p-md-12 rz-p-sm-4 rz-sm-4 rz-md-12">
+            <RadzenLabel Text="Choose Application" Component="DropDownSelectApp" />
+            <RadzenDropDown @bind-Value=@selectedAppIdDummy Change="@(args => OnChangeApp(args))" Data=@ApplicationNames
+                            TextProperty="@nameof(DropDownItem.Value)"
+                            ValueProperty="@nameof(DropDownItem.Id)" Style="width: 100%; max-width: 400px;" Name="DropDownSelectApp" />
+
+            @if (selectedApp != null)
+            {
+                <RadzenLabel Text="Choose version" Component="DropDownSelectVersion" />
+                <RadzenDropDown @bind-Value=@selectedAppVersionId Change="@(args => OnChangeAppVersion(args))"
+                                Data=@selectedApp?.Versions
+                                TextProperty="@nameof(AppVersion.Version)" ValueProperty="@nameof(AppVersion.Id)"
+                                Style="width: 100%; max-width: 400px;" Name="DropDownSelectVersion" />
+            }
+        </RadzenStack>
+
+        <VersioningAppBlazorServer.Components.VersioningComp.ViewAppVersion @ref=@viewAppVersion
+                                                                OnAppVersionClicked="@OnAppVersionClicked" />
+    </Body>
+</PageBody>
+
+@code {
+    private VersioningAppBlazorServer.Components.VersioningComp.ViewAppVersion viewAppVersion = new();
+
+    private List<DropDownItem> ApplicationNames = [];
+
+    private Application? selectedApp;
+    private int? selectedAppIdDummy;
+
+    private AppVersion? selectedAppVersion;
+    private int? selectedAppVersionId;
+
+    private async Task OnChangeApp(object value)
+    {
+        if (value is int appId)
+        {
+            var app = await VersioningService.GetApplicationById(appId);
+            if (app.IsSuccess)
+                selectedApp = app.Value;
+            selectedAppVersionId = null;
+        }
+    }
+
+    private async Task OnChangeAppVersion(object value)
+    {
+        if (value is int versionId)
+        {
+            var version = await VersioningService.GetAppVersion(versionId);
+            selectedAppVersion = version.Value;
+
+            if (selectedAppVersion == null)
+                return;
+
+            selectedAppVersionId = versionId;
+
+            var compatibleApps = await VersioningService.GetCompatibilityApplications(versionId);
+
+            viewAppVersion.AddParms(selectedAppVersion, selectedApp?.Name, compatibleApps.Value ?? []);
+            StateHasChanged();
+        }
+    }
+
+    private async Task OnAppVersionClicked(KeyValuePair<int, int> appWithVersion)
+    {
+        var app = await VersioningService.GetApplicationById(appWithVersion.Key);
+        if (app.IsSuccess)
+            selectedApp = app.Value;
+        selectedAppIdDummy = appWithVersion.Key;
+
+        var version = await VersioningService.GetAppVersion(appWithVersion.Value);
+        selectedAppVersion = version.Value;
+        if (selectedAppVersion != null)
+        {
+            selectedAppVersionId = selectedAppVersion.Id;
+
+            var compatibleApps = await VersioningService.GetCompatibilityApplications(selectedAppVersion.Id);
+
+            viewAppVersion.AddParms(selectedAppVersion, selectedApp?.Name, compatibleApps.Value ?? []);
+        }
+        StateHasChanged();
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var applicationNames = await VersioningService.GetAllApplicationsNames();
+        if (applicationNames.IsSuccess)
+            ApplicationNames = applicationNames.Value ?? [];
+
+        await base.OnInitializedAsync();
+    }
+}

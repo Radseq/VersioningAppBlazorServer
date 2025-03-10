@@ -1,0 +1,209 @@
+﻿@using VersioningAppBlazorServer.Models
+@using VersioningAppBlazorServer.Models.UI
+@using VersioningAppBlazorServer.Services.Versioning
+@using VersioningAppBlazorServer.Utils
+
+@page "/NewApplicationVersion"
+@rendermode InteractiveServer
+
+@inject NavigationManager Navigation
+@inject IVersioningService VersioningService
+
+<PageBody>
+    <Body>
+
+        <RadzenStack Orientation="Orientation.Vertical"
+                     JustifyContent="JustifyContent.Normal" Gap="0.5rem" class="">
+
+            <h3>Add version</h3>
+
+            <RadzenLabel Text="Choose Application" Component="DropDownSelectApp" />
+            <RadzenDropDown @bind-Value=@selectedAppIdDummy Change="@(args => OnChangeApp(args))" Data=@ApplicationNames
+                            TextProperty="@nameof(DropDownItem.Value)"
+                            ValueProperty="@nameof(DropDownItem.Id)" Style="width: 100%; max-width: 400px;" Name="DropDownSelectApp" />
+
+
+            @if (selectedApp != null)
+            {
+                <RadzenRow class="rz-py-2">
+                    <RadzenLabel Text="List of existing versions" />
+                    <RadzenListBox Disabled
+                                   Data="selectedApp.Versions"
+                                   TValue="int"
+                                   TextProperty="@nameof(AppVersion.Version)"
+                                   ValueProperty="@nameof(AppVersion.Id)"
+                                   Style="width: 100%; max-width: 200px; height: 100px"
+                                   InputAttributes="@(new Dictionary<string,object>(){{ "aria-label", "select company" }})" />
+                </RadzenRow>
+
+                <VersioningAppBlazorServer.Components.VersioningComp.VersionNumeric MajorMin="selectedApp.Versions.Max(x=>x.Major)"
+                                                                                    MinorMin="selectedApp.Versions.Max(x=>x.Minor)"
+                                                                                    PatchMin="selectedApp.Versions.Max(x=>x.Patch) + 1"
+                                                                                    OnNumericMajorSet="@HandleMajorVersionChange"
+                                                                                    OnNumericMinorSet="@HandleMinorVersionChange"
+                                                                                    OnNumericPatchSet="@HandlePatchVersionChange" />
+                @if (ApplicationsToPickUp.Count > 0)
+                {
+                    <h3>Exists applications to choose</h3>
+                    <RadzenRow>
+                        @foreach (var item in ApplicationsToPickUp)
+                        {
+                            <RadzenColumn Size="12" SizeMd="6" SizeLg="4" SizeXl="3">
+                                <div class="shop-item">
+                                    <div class="item-name">@item.Name</div>
+                                    <ul class="item-list">
+                                        @foreach (var version in item.Versions)
+                                        {
+                                            <li @onclick="()=>OnSelectAppToPickUp(item, version.Id)">@version.Version</li>
+                                        }
+                                    </ul>
+                                </div>
+                            </RadzenColumn>
+                        }
+                    </RadzenRow>
+                }
+                @if (ApplicationsPicked.Count > 0)
+                {
+                    <h3>Application picked</h3>
+                    <RadzenRow>
+                        @foreach (var item in ApplicationsPicked)
+                        {
+                            <RadzenColumn Size="12" SizeMd="6" SizeLg="4" SizeXl="3">
+                                <div class="shop-item">
+                                    <div class="item-name">@item.Name</div>
+                                    <p>@item.Version.Version</p>
+                                    <RadzenButton ButtonStyle="ButtonStyle.Danger"
+                                                  Text="Delete" Variant="Variant.Flat" Click="@(args => OnDeleteAppPicked(item))" />
+                                </div>
+                            </RadzenColumn>
+                        }
+                    </RadzenRow>
+                    <RadzenColumn>
+                        <RadzenButton ButtonStyle="ButtonStyle.Primary" Text="Add" Variant="Variant.Flat" Click="@AddButtonClick" />
+                    </RadzenColumn>
+                }
+            }
+        </RadzenStack>
+    </Body>
+</PageBody>
+
+@code {
+    private List<DropDownItem> ApplicationNames = [];
+    private IList<Application> Applications { get; set; } = [];
+
+
+    private Application? selectedApp;
+    private int? selectedAppIdDummy;
+
+    private AppVersion NewAppVersion { get; set; } = new();
+
+    public IList<Application> ApplicationsToPickUp { get; set; } = [];
+
+    public IList<ApplicationPicked> ApplicationsPicked { get; set; } = [];
+
+    private void OnSelectAppToPickUp(Application app, int versionId)
+    {
+        ApplicationsToPickUp.Remove(app);
+
+        var appVersion = app.Versions.FirstOrDefault(x => x.Id == versionId);
+        if (appVersion != null)
+            ApplicationsPicked.Add(Copys.Copy(app, appVersion));
+
+        StateHasChanged();
+    }
+
+    private void OnDeleteAppPicked(ApplicationPicked appPicked)
+    {
+        ApplicationsPicked.Remove(appPicked);
+
+        var app = Applications.FirstOrDefault(x => x.Id == appPicked.Id);
+        if (app != null)
+            ApplicationsToPickUp.Add(Copys.Copy(app));
+
+        SortApplicationsToPickUp();
+
+        StateHasChanged();
+    }
+
+    private async Task OnChangeApp(object value)
+    {
+        if (value is int appId)
+        {
+            var app = await VersioningService.GetApplicationById(appId);
+            if (app.IsSuccess)
+                selectedApp = app.Value;
+
+            if (selectedApp == null)
+                return;
+
+            selectedApp.Versions = selectedApp.Versions.OrderByDescending(x => x.Major).ThenByDescending(g => g.Minor).ThenByDescending(r => r.Patch).ToList();
+
+            ApplicationsToPickUp = Applications.Where(x => x.Id != selectedApp.Id).ToList().ConvertAll(Copys.Copy);
+            SortApplicationsToPickUp();
+
+            NewAppVersion.AppId = selectedApp.Id;
+            NewAppVersion.Major = selectedApp.Versions.Max(x => x.Major);
+            NewAppVersion.Minor = selectedApp.Versions.Max(x => x.Minor);
+            NewAppVersion.Patch = selectedApp.Versions.Max(x => x.Patch) + 1;
+            StateHasChanged();
+        }
+    }
+
+    protected async Task AddButtonClick(MouseEventArgs args)
+    {
+        foreach (var item in ApplicationsPicked)
+        {
+            NewAppVersion.Compatibilities.Add(new AppCompatibility()
+                {
+                    AppVersionId = item.Version.Id,
+                    CompatibleWithAppId = item.Id,
+                });
+        }
+
+        var a = await VersioningService.AddNewVersion(NewAppVersion, NewAppVersion.Compatibilities);
+        if (a.IsSuccess)
+            Navigation.NavigateTo($"AppVersionView/{NewAppVersion.AppId}/{NewAppVersion.Id}");
+
+        ApplicationsToPickUp.Clear();
+        ApplicationsPicked.Clear();
+        NewAppVersion = new();
+        selectedApp = null;
+        StateHasChanged();
+    }
+
+    private void SortApplicationsToPickUp()
+    {
+        foreach (var item in ApplicationsToPickUp)
+        {
+            item.Versions = item.Versions.OrderByDescending(x => x.Major).ThenByDescending(g => g.Minor).ThenByDescending(r => r.Patch).ToList();
+        }
+    }
+
+    private void HandleMajorVersionChange(int major)
+    {
+        NewAppVersion.Major = major;
+    }
+
+    private void HandleMinorVersionChange(int minor)
+    {
+        NewAppVersion.Major = minor;
+    }
+
+    private void HandlePatchVersionChange(int patch)
+    {
+        NewAppVersion.Patch = patch;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var appsNames = await VersioningService.GetAllApplicationsNames();
+        if (appsNames.IsSuccess)
+            ApplicationNames = appsNames.Value ?? [];
+
+        var apps = await VersioningService.GetAllApplications();
+        if (apps.IsSuccess)
+            Applications = apps.Value ?? [];
+
+        await base.OnInitializedAsync();
+    }
+}

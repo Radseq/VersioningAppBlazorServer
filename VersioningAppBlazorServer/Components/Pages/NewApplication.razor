@@ -1,0 +1,182 @@
+﻿@using VersioningAppBlazorServer.Models
+@using VersioningAppBlazorServer.Utils
+
+@page "/NewApplication"
+@rendermode InteractiveServer
+
+@inject IVersioningService VersioningService
+@inject NavigationManager Navigation
+
+<PageBody>
+    <Body>
+        <RadzenStack Orientation="Orientation.Vertical"
+                     JustifyContent="JustifyContent.Normal" Gap="0.5rem" class="">
+
+            <h3>Add Application</h3>
+
+            <RadzenColumn>
+                <RadzenTextBox Placeholder="Application name" Change=@(args => OnNewApplicationNameChange(args)) Name="NewApplicationTextBox" />
+            </RadzenColumn>
+
+
+            <VersioningAppBlazorServer.Components.VersioningComp.VersionNumeric MajorMin="1"
+                                                                    MinorMin="0"
+                                                                    PatchMin="0"
+                                                                    OnNumericMajorSet="@HandleMajorVersionChange"
+                                                                    OnNumericMinorSet="@HandleMinorVersionChange"
+                                                                    OnNumericPatchSet="@HandlePatchVersionChange" />
+            @if (ApplicationsToPickUp.Count > 0)
+            {
+                <h3>Exists applications to choose</h3>
+                <RadzenRow>
+                    @foreach (var item in ApplicationsToPickUp)
+                    {
+                        <RadzenColumn Size="12" SizeMd="6" SizeLg="4" SizeXl="3">
+                            <div class="shop-item">
+                                <div class="item-name">@item.Name</div>
+                                <ul class="item-list">
+                                    @foreach (var version in item.Versions)
+                                    {
+                                        <li @onclick="()=>OnSelectAppToPickUp(item, version.Id)">@version.Version</li>
+                                    }
+                                </ul>
+                            </div>
+                        </RadzenColumn>
+                    }
+                </RadzenRow>
+            }
+            @if (ApplicationsPicked.Count > 0)
+            {
+                <h3>Application picked</h3>
+                <RadzenRow>
+                    @foreach (var item in ApplicationsPicked)
+                    {
+                        <RadzenColumn Size="12" SizeMd="6" SizeLg="4" SizeXl="3">
+                            <div class="shop-item">
+                                <div class="item-name">@item.Name</div>
+                                <p>@item.Version.Version</p>
+                                <RadzenButton ButtonStyle="ButtonStyle.Danger"
+                                              Text="Delete" Variant="Variant.Flat" Click="@(args => OnDeleteAppPicked(item))" />
+                            </div>
+                        </RadzenColumn>
+                    }
+                </RadzenRow>
+                <RadzenColumn>
+                    <RadzenButton ButtonStyle="ButtonStyle.Primary" Text="Add" Variant="Variant.Flat" Click="@AddButtonClick" />
+                </RadzenColumn>
+            }
+        </RadzenStack>
+    </Body>
+</PageBody>
+
+@code {
+    private IList<Application> Applications { get; set; } = [];
+
+    private Application NewApplicationToCreate = new();
+
+    public IList<Application> ApplicationsToPickUp { get; set; } = [];
+
+    public IList<ApplicationPicked> ApplicationsPicked { get; set; } = [];
+
+    private void OnNewApplicationNameChange(string value)
+    {
+        NewApplicationToCreate.Name = value;
+    }
+
+    private void OnSelectAppToPickUp(Application app, int versionId)
+    {
+        ApplicationsToPickUp.Remove(app);
+
+        var appVersion = app.Versions.FirstOrDefault(x => x.Id == versionId);
+        if (appVersion != null)
+            ApplicationsPicked.Add(Copys.Copy(app, appVersion));
+
+        StateHasChanged();
+    }
+
+    private void OnDeleteAppPicked(ApplicationPicked appPicked)
+    {
+        ApplicationsPicked.Remove(appPicked);
+
+        var app = Applications.FirstOrDefault(x => x.Id == appPicked.Id);
+        if (app != null)
+            ApplicationsToPickUp.Add(Copys.Copy(app));
+
+        SortApplicationsToPickUp();
+        StateHasChanged();
+    }
+
+
+    protected async Task AddButtonClick(MouseEventArgs args)
+    {
+        foreach (var item in ApplicationsPicked)
+        {
+            NewApplicationToCreate.Versions[0].Compatibilities.Add(new AppCompatibility()
+                {
+                    AppVersionId = item.Version.Id,
+                    CompatibleWithAppId = item.Id,
+                });
+        }
+
+        var a = await VersioningService.AddNewApplication(NewApplicationToCreate, NewApplicationToCreate.Versions[0],
+            NewApplicationToCreate.Versions[0].Compatibilities);
+        if (a.IsSuccess)
+            Navigation.NavigateTo($"AppVersionView/{a.Value.Key}/{a.Value.Value}");
+
+        ApplicationsToPickUp = Applications.ToList().ConvertAll(Copys.Copy);
+        SortApplicationsToPickUp();
+        ApplicationsPicked.Clear();
+        NewApplicationToCreate = new();
+        AddVersion();
+
+        StateHasChanged();
+    }
+
+    private void SortApplicationsToPickUp()
+    {
+        foreach (var item in ApplicationsToPickUp)
+        {
+            item.Versions = item.Versions.OrderByDescending(x => x.Major).ThenByDescending(g => g.Minor).ThenByDescending(r => r.Patch).ToList();
+        }
+    }
+
+    private void HandleMajorVersionChange(int major)
+    {
+        NewApplicationToCreate.Versions[0].Major = major;
+    }
+
+    private void HandleMinorVersionChange(int minor)
+    {
+        NewApplicationToCreate.Versions[0].Major = minor;
+    }
+
+    private void HandlePatchVersionChange(int patch)
+    {
+        NewApplicationToCreate.Versions[0].Patch = patch;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        AddVersion();
+
+        var apps = await VersioningService.GetAllApplications();
+        Applications = apps.Value ?? [];
+
+        ApplicationsToPickUp = Applications.ToList().ConvertAll(Copys.Copy);
+        SortApplicationsToPickUp();
+
+        await base.OnInitializedAsync();
+    }
+
+    private void AddVersion()
+    {
+        NewApplicationToCreate.Versions.Add(new AppVersion()
+            {
+                Compatibilities = [],
+                AppId = NewApplicationToCreate.Id,
+                Major = 1,
+                Minor = 0,
+                Patch = 0
+            });
+    }
+}

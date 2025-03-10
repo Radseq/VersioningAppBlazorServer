@@ -1,0 +1,142 @@
+﻿@using VersioningAppBlazorServer.Models
+@using VersioningAppBlazorServer.Utils
+
+<RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center"
+             JustifyContent="JustifyContent.Normal" Gap="0.5rem" class="">
+    <RadzenLabel Text="Provide version" />
+    <RadzenNumeric TValue="int"
+                   @bind-Value="Major"
+                   Change="(args)=>HandleMajorVersionChange()" InputAttributes="@(new Dictionary<string,object>(){ { "aria-label", "enter value" }})" />
+    <RadzenNumeric TValue="int"
+                   @bind-Value="Minor"
+                   Change="()=>HandleMinorVersionChange()" InputAttributes="@(new Dictionary<string,object>(){ { "aria-label", "enter value" }})" />
+    <RadzenNumeric TValue="int"
+                   @bind-Value="Patch"
+                   Change="()=>HandlePatchVersionChange()" InputAttributes="@(new Dictionary<string,object>(){ { "aria-label", "enter value" }})" />
+</RadzenStack>
+
+
+@code {
+    [Parameter]
+    public int MajorMin { get; set; } = 1;
+    [Parameter]
+    public int MinorMin { get; set; } = 0;
+    [Parameter]
+    public int PatchMin { get; set; } = 0;
+
+    [Parameter]
+    public Action<int>? OnNumericMajorSet { get; set; }
+    [Parameter]
+    public Action<int>? OnNumericMinorSet { get; set; }
+    [Parameter]
+    public Action<int>? OnNumericPatchSet { get; set; }
+
+    private int Major { get; set; } = 0;
+    private int Minor { get; set; } = 0;
+    private int Patch { get; set; } = 0;
+
+    private int NewMajor { get; set; } = 0;
+    private int NewMinor { get; set; } = 0;
+    private int NewPatch { get; set; } = 0;
+
+    protected override void OnInitialized()
+    {
+        Major = MajorMin;
+        Minor = MinorMin;
+        Patch = PatchMin;
+
+        base.OnInitialized();
+    }
+
+    private void HandleMajorVersionChange()
+    {
+        if (Major < 0)
+        {
+            Major = 0;
+            return;
+        }
+
+        if (Major > NewMajor)
+        {
+            NewMajor = Major;
+            Minor = NewMinor = 0;
+            Patch = NewPatch = 0;
+            OnNumericMajorSet?.Invoke(NewMajor);
+            OnNumericMinorSet?.Invoke(NewMinor);
+            OnNumericPatchSet?.Invoke(NewPatch);
+        }
+        else if (Major <= MajorMin)
+        {
+            Major = NewMajor = MajorMin;
+            Minor = NewMinor = MinorMin;
+            Patch = NewPatch = PatchMin;
+            OnNumericMajorSet?.Invoke(MajorMin);
+            OnNumericMinorSet?.Invoke(MinorMin);
+            OnNumericPatchSet?.Invoke(PatchMin);
+        }
+        else
+        {
+            NewMajor = Major;
+            Minor = NewMinor = 0;
+            Patch = NewPatch = 0;
+            OnNumericMajorSet?.Invoke(NewMajor);
+            OnNumericMinorSet?.Invoke(NewMinor);
+            OnNumericPatchSet?.Invoke(NewPatch);
+        }
+    }
+
+    private void HandleMinorVersionChange()
+    {
+        if (Minor < 0)
+        {
+            Minor = 0;
+            return;
+        }
+
+        if (Minor > NewMinor)
+        {
+            NewMinor = Minor;
+            NewPatch = Patch = 0;
+            OnNumericMinorSet?.Invoke(NewMinor);
+            OnNumericPatchSet?.Invoke(NewPatch);
+        }
+        else if (NewMajor <= MajorMin && Minor <= MinorMin)
+        {
+            Minor = NewMinor = MinorMin;
+            Patch = NewPatch = PatchMin;
+            OnNumericMinorSet?.Invoke(MinorMin);
+            OnNumericPatchSet?.Invoke(PatchMin);
+        }
+        else
+        {
+            NewMinor = Minor;
+            Patch = NewPatch = 0;
+            OnNumericMinorSet?.Invoke(NewMinor);
+            OnNumericPatchSet?.Invoke(NewPatch);
+        }
+    }
+
+    private void HandlePatchVersionChange()
+    {
+        if (Patch < 0)
+        {
+            Patch = 0;
+            return;
+        }
+        if (Patch > NewPatch)
+        {
+            NewPatch = Patch;
+            OnNumericPatchSet?.Invoke(NewPatch);
+        }
+        else if (NewMajor <= MajorMin && NewMinor <= MinorMin && Patch <= PatchMin)
+        {
+            Patch = NewPatch = PatchMin;
+            OnNumericPatchSet?.Invoke(PatchMin);
+        }
+        else
+        {
+            NewPatch = Patch;
+            OnNumericPatchSet?.Invoke(NewPatch);
+        }
+    }
+}

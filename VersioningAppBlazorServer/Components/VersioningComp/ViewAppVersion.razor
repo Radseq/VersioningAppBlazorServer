@@ -1,0 +1,145 @@
+﻿@using VersioningAppBlazorServer.Models
+@using VersioningAppBlazorServer.Utils
+
+@if (SelectedCompatibilityApps != null && SelectedCompatibilityApps.Count > 0)
+{
+    <h3>The @ApplicationName application in version @selectedAppVersion?.Version uses</h3>
+    <RadzenDataGrid Data="@SelectedCompatibilityApps" AllowVirtualization="true"
+                    AllowFiltering="true" FilterPopupRenderMode="PopupRenderMode.OnDemand"
+                    FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
+                    LogicalFilterOperator="LogicalFilterOperator.Or"
+                    TItem="ApplicationView"
+                    AllowSorting="true" RowClick="(arg)=>OnRowClick(arg)">
+        <Columns>
+            <RadzenDataGridColumn Property="@nameof(ApplicationView.Name)" Title="Name" />
+            <RadzenDataGridColumn Title="Version">
+                <Template Context="app">
+                    @if (app.SelectedAppVersion != null)
+                    {
+                        @app.SelectedAppVersion.Version
+                    }
+                    else
+                    {
+                        <span>N/A</span>
+                    }
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn Title="All Versions">
+                <Template Context="app">
+                    @if (app.Versions != null && app.Versions.Any())
+                    {
+                        @if (app.Versions.Count > 1)
+                        {
+                            <RadzenListBox @bind-Value="dataGrisAppVersionSelectedValue" Data="app.Versions"
+                                           TextProperty="@nameof(AppVersion.Version)"
+                                           ValueProperty="@nameof(AppVersion.Id)"
+                                           Style="width: 100%; max-width: 200px; height: 100px"
+                                           InputAttributes="@(new Dictionary<string,object>(){{ "aria-label", "select company" }})"
+                                           Change="@(args => OnSelectVersionOfApp(app))" />
+                        }
+                    }
+                    else
+                    {
+                        <span>No versions available</span>
+                    }
+                </Template>
+            </RadzenDataGridColumn>
+        </Columns>
+    </RadzenDataGrid>
+}
+
+
+@code {
+    [Parameter]
+    //public Action<KeyValuePair<int, int>>? OnAppVersionClicked { get; set; }
+    public EventCallback<KeyValuePair<int, int>> OnAppVersionClicked { get; set; }
+
+    private IList<ApplicationView> AppsViews { get; set; } = [];
+
+    private string ApplicationName { get; set; } = "ERROR";
+
+    private int? dataGrisAppVersionSelectedValue;
+
+    private AppVersion? selectedAppVersion;
+
+    private IList<ApplicationView>? SelectedCompatibilityApps;
+
+    private bool StopBubble = false;
+
+    public void AddParms(AppVersion appVersion, string? applicationName, IList<Application> compatibleApps)
+    {
+        ApplicationName = applicationName ?? "NO_APP_NAME_FIX_ME";
+        selectedAppVersion = appVersion;
+        AppsViews = compatibleApps.ToList().ConvertAll(Mappers.MapApplication_to_ApplicationView);
+
+        UpdateCompatibilityForVersion(appVersion.Id);
+        StateHasChanged();
+    }
+
+    private async Task OnSelectVersionOfApp(ApplicationView app)
+    {
+        if (!dataGrisAppVersionSelectedValue.HasValue)
+            return;
+
+        if (app.SelectedAppVersion != null)
+            await OnAppVersionClicked.InvokeAsync(new KeyValuePair<int, int>(app.Id, dataGrisAppVersionSelectedValue.Value));
+
+        StopBubble = true;
+    }
+
+    private async Task OnRowClick(DataGridRowMouseEventArgs<ApplicationView> clickedApp)
+    {
+        if (StopBubble) // HAX radzen and his stop propagation
+        {
+            StopBubble = false;
+            return;
+        }
+
+        if (clickedApp?.Data == null || clickedApp.Data.SelectedAppVersion == null)
+            return;
+
+        await OnAppVersionClicked.InvokeAsync(new KeyValuePair<int, int>
+            (clickedApp.Data.Id, clickedApp.Data.SelectedAppVersion.Id));
+    }
+
+    private void UpdateCompatibilityForVersion(int versionId)
+    {
+        if (selectedAppVersion == null)
+            return;
+
+        var compatibilitiesForVersion = selectedAppVersion.Compatibilities ?? new List<AppCompatibility>
+            ();
+        SetSelectedCompatibilityApps(compatibilitiesForVersion);
+
+        UpdateSelectedVersionsForCompatibleApps(compatibilitiesForVersion);
+    }
+
+    private void SetSelectedCompatibilityApps(List<AppCompatibility> appCompatibilities)
+    {
+        if (appCompatibilities == null || !appCompatibilities.Any())
+        {
+            SelectedCompatibilityApps?.Clear();
+            dataGrisAppVersionSelectedValue = null;
+            return;
+        }
+
+        var compatibleAppIds = appCompatibilities.Select(f => f.CompatibleWithAppId).ToList();
+        SelectedCompatibilityApps = AppsViews.Where(x => compatibleAppIds.Contains(x.Id)).ToList();
+    }
+
+    private void UpdateSelectedVersionsForCompatibleApps(List<AppCompatibility>
+        compatibilities)
+    {
+        if (compatibilities == null || !compatibilities.Any())
+            return;
+
+        foreach (var app in SelectedCompatibilityApps ?? [])
+        {
+            var compatibility = compatibilities.FirstOrDefault(c => c.CompatibleWithAppId == app.Id);
+            if (compatibility != null)
+            {
+                app.SelectedAppVersion = app.Versions.FirstOrDefault(v => v.Id == compatibility.AppVersionId);
+            }
+        }
+    }
+}
