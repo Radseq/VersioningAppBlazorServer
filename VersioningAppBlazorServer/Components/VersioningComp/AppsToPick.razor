@@ -1,0 +1,31 @@
+﻿@using VersioningAppBlazorServer.Models
+@using VersioningAppBlazorServer.Models.UI
+
+@if (ApplicationsToPickUp.Count > 0)
+{
+    <h3>Available for Selection</h3>
+    <RadzenRow>
+        @foreach (var item in ApplicationsToPickUp)
+        {
+            <RadzenColumn Size="12" SizeMD="6" SizeLG="4" SizeXL="3">
+                <div class="shop-item">
+                    <div class="item-name">@item.Name</div>
+                    <ul class="item-list">
+                        @foreach (var version in item.Versions)
+                        {
+                            <li @onclick="()=>OnSelectAppToPickUp?.Invoke(new SelectAppToPickUpResult(item, version.Id))">@version.Version</li>
+                        }
+                    </ul>
+                </div>
+            </RadzenColumn>
+        }
+    </RadzenRow>
+}
+
+@code {
+    [Parameter]
+    public IList<ApplicationDTO> ApplicationsToPickUp { get; set; } = [];
+
+    [Parameter]
+    public Action<SelectAppToPickUpResult>? OnSelectAppToPickUp { get; set; }
+}

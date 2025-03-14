@@ -1,0 +1,26 @@
+﻿@using VersioningAppBlazorServer.Models
+@if (ApplicationsPicked.Count > 0)
+{
+    <h3>Selected</h3>
+    <RadzenRow>
+        @foreach (var item in ApplicationsPicked)
+        {
+            <RadzenColumn Size="12" SizeMD="6" SizeLG="4" SizeXL="3">
+                <div class="shop-item">
+                    <div class="item-name">@item.Name</div>
+                    <p>@item.Version.Version</p>
+                    <RadzenButton ButtonStyle="ButtonStyle.Danger"
+                                  Text="Delete" Variant="Variant.Flat" Click="@(args => OnDeleteAppPicked?.Invoke(item))" />
+                </div>
+            </RadzenColumn>
+        }
+    </RadzenRow>
+}
+
+@code {
+    [Parameter]
+    public IList<ApplicationPicked> ApplicationsPicked { get; set; } = [];
+
+    [Parameter]
+    public Action<ApplicationPicked>? OnDeleteAppPicked { get; set; }
+}

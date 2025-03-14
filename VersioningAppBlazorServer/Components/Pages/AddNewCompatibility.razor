@@ -33,43 +33,11 @@
                                 Style="width: 100%; max-width: 400px;" Name="DropDownBindValue2" />
             }
 
-            @if (ApplicationsToPickUp.Count > 0)
-            {
-                <h3>Available for Selection</h3>
-                <RadzenRow>
-                    @foreach (var item in ApplicationsToPickUp)
-                    {
-                        <RadzenColumn Size="12" SizeMd="6" SizeLg="4" SizeXl="3">
-                            <div class="shop-item">
-                                <div class="item-name">@item.Name</div>
-                                <ul class="item-list">
-                                    @foreach (var version in item.Versions)
-                                    {
-                                        <li @onclick="()=>OnSelectAppToPickUp(item, version.Id)">@version.Version</li>
-                                    }
-                                </ul>
-                            </div>
-                        </RadzenColumn>
-                    }
-                </RadzenRow>
-            }
-            @if (ApplicationsPicked.Count > 0)
-            {
-                <h3>Selected</h3>
-                <RadzenRow>
-                    @foreach (var item in ApplicationsPicked)
-                    {
-                        <RadzenColumn Size="12" SizeMd="6" SizeLg="4" SizeXl="3">
-                            <div class="shop-item">
-                                <div class="item-name">@item.Name</div>
-                                <p>@item.Version.Version</p>
-                                <RadzenButton ButtonStyle="ButtonStyle.Danger"
-                                              Text="Delete" Variant="Variant.Flat" Click="@(args => OnDeleteAppPicked(item))" />
-                            </div>
-                        </RadzenColumn>
-                    }
-                </RadzenRow>
-            }
+            <VersioningAppBlazorServer.Components.VersioningComp.AppsToPick ApplicationsToPickUp="@ApplicationsToPickUp"
+                                                                            OnSelectAppToPickUp="(args)=>OnSelectAppToPickUp(args.Application, args.VersionId)" />
+            <VersioningAppBlazorServer.Components.VersioningComp.AppsPicked ApplicationsPicked="@ApplicationsPicked"
+                                                                            OnDeleteAppPicked="@OnDeleteAppPicked" />
+
             @if (selectedApp != null)
             {
                 <RadzenColumn>
