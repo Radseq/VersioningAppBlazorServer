@@ -1,0 +1,72 @@
+﻿using EFDataAccessLib.DataAccess;
+using EFDataAccessLib.Models;
+using Microsoft.EntityFrameworkCore;
+using System.Linq.Expressions;
+
+namespace EFDataAccessLib.Repos.Versioning;
+
+public class RepoAppVersion : IRepoAppVersion
+{
+    private readonly ProgDbContext dataContext;
+
+    public RepoAppVersion(ProgDbContext _dbContext)
+    {
+        dataContext = _dbContext;
+    }
+
+    public async Task<AppVersion> AddOneAsync(AppVersion entity)
+    {
+        await dataContext.AppVersions.AddAsync(entity);
+        return entity;
+    }
+
+    public async Task<int> CountAsync()
+    {
+        return await dataContext.AppVersions.CountAsync();
+    }
+
+    public async Task<int> CountWhereAsync(Expression<Func<AppVersion, bool>> predicate)
+    {
+        return await dataContext.AppVersions.Where(predicate).CountAsync();
+    }
+
+    public async Task<AppVersion?> FirstOrDefaultAsync(Expression<Func<AppVersion, bool>> predicate)
+    {
+        return await dataContext.AppVersions.FirstOrDefaultAsync(predicate);
+    }
+
+    public async Task<IEnumerable<AppVersion>> GetAllAsync()
+    {
+        return await dataContext.AppVersions.ToListAsync();
+    }
+    public async Task<AppVersion?> GetByIdAsync(int id)
+    {
+        return await dataContext.AppVersions.Include(x => x.CompatibilitySourceVersions)
+            .Include(x => x.CompatibilityTargetVersions).FirstOrDefaultAsync(x => x.Id == id);
+    }
+    public async Task<IEnumerable<AppVersion>> GetManyAsync(List<int> manyList)
+    {
+        return await dataContext.AppVersions.Where(i => manyList.Contains(i.Id)).ToListAsync();
+    }
+
+    public async Task<IEnumerable<AppVersion>> GetWhereAsync(Expression<Func<AppVersion, bool>> predicate)
+    {
+        return await dataContext.AppVersions.Where(predicate).ToListAsync();
+    }
+
+    public AppVersion Modify(AppVersion entity)
+    {
+        dataContext.AppVersions.Update(entity);
+        return entity;
+    }
+
+    public void Remove(AppVersion entity)
+    {
+        dataContext.AppVersions.Remove(entity);
+    }
+
+    public void RemoveRange(IEnumerable<AppVersion> entities)
+    {
+        dataContext.AppVersions.RemoveRange(entities);
+    }
+}

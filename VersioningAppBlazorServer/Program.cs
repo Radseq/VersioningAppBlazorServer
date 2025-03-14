@@ -2,6 +2,7 @@ using VersioningAppBlazorServer.Components;
 using VersioningAppBlazorServer.Services.Versioning;
 using VersioningAppBlazorServer.Services;
 using Radzen;
+using EFDataAccessLib;
 
 namespace VersioningAppBlazorServer;
 
@@ -19,7 +20,10 @@ public class Program
         services.AddRazorComponents()
             .AddInteractiveServerComponents();
 
-        services.AddSingleton<IVersioningService, VersioningService>();
+        services.AddDataBase(configuration["ConnectionString"] ?? "");
+
+
+        services.AddTransient<IVersioningService, VersioningService>();
 
         services.AddMemoryCache();
         services.AddSingleton<ICacheService, CacheService>();

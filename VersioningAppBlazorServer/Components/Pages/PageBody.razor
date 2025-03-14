@@ -21,18 +21,7 @@
             }
             <RadzenColumn>
                 <RadzenStack AlignItems="AlignItems.End">
-@*                     <AuthorizeView>
-                        <Authorized>
-                            <RadzenMenu class="rz-mt-0 rz-mr-0 rz-pr-0 rz-pt-0">
-                                <RadzenMenuItem Text="@context.User.Identity?.Name" Icon="account_circle">
-                                    <RadzenMenuItem Text="Wyloguj się" Click="BeginSignOut" Icon="input"></RadzenMenuItem>
-                                </RadzenMenuItem>
-                            </RadzenMenu>
-                        </Authorized>
-                        <NotAuthorized>
-                            <a href="authentication/login">Log in</a>
-                        </NotAuthorized>
-                    </AuthorizeView> *@
+
                 </RadzenStack>
             </RadzenColumn>
         </RadzenRow>
@@ -48,7 +37,7 @@
         }
         else
         {
-            <p>brak zawartości</p>
+            <p>No page content</p>
         }
     </RadzenBody>
     <RadzenFooter>

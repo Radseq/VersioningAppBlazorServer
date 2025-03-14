@@ -1,11 +1,13 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
-VisualStudioVersion = 17.13.35825.156 d17.13
+VisualStudioVersion = 17.13.35825.156
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VersioningAppBlazorServer", "VersioningAppBlazorServer\VersioningAppBlazorServer.csproj", "{42C0526E-F189-4A88-9AC1-674FE1ABDEB3}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReturnTypeWrapper", "ReturnTypeWrapper\ReturnTypeWrapper.csproj", "{667D05B2-519F-277F-5B6E-48717D19DCBD}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EFDataAccessLib", "EFDataAccessLib\EFDataAccessLib.csproj", "{12183B86-0B62-B192-394B-B45382E25B3C}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,6 +23,10 @@ Global
 		{667D05B2-519F-277F-5B6E-48717D19DCBD}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{667D05B2-519F-277F-5B6E-48717D19DCBD}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{667D05B2-519F-277F-5B6E-48717D19DCBD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{12183B86-0B62-B192-394B-B45382E25B3C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{12183B86-0B62-B192-394B-B45382E25B3C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{12183B86-0B62-B192-394B-B45382E25B3C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{12183B86-0B62-B192-394B-B45382E25B3C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

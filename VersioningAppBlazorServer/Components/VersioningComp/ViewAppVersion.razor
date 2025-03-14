@@ -1,9 +1,11 @@
 ﻿@using VersioningAppBlazorServer.Models
 @using VersioningAppBlazorServer.Utils
 
-@if (SelectedCompatibilityApps != null && SelectedCompatibilityApps.Count > 0)
+@inject NotificationService NotificationService
+
+@if (SelectedCompatibilityApps != null && SelectedCompatibilityApps.Count > 0 && AppsViews.Count > 0)
 {
-    <h3>The @ApplicationName application in version @selectedAppVersion?.Version uses</h3>
+    <h3>Application @ApplicationName in version @SelectedAppVersion?.Version uses</h3>
     <RadzenDataGrid Data="@SelectedCompatibilityApps" AllowVirtualization="true"
                     AllowFiltering="true" FilterPopupRenderMode="PopupRenderMode.OnDemand"
                     FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
@@ -28,11 +30,11 @@
                 <Template Context="app">
                     @if (app.Versions != null && app.Versions.Any())
                     {
-                        @if (app.Versions.Count > 1)
+                        @if (app.Versions.Count > 0)
                         {
                             <RadzenListBox @bind-Value="dataGrisAppVersionSelectedValue" Data="app.Versions"
-                                           TextProperty="@nameof(AppVersion.Version)"
-                                           ValueProperty="@nameof(AppVersion.Id)"
+                                           TextProperty="@nameof(AppVersionDTO.Version)"
+                                           ValueProperty="@nameof(AppVersionDTO.Id)"
                                            Style="width: 100%; max-width: 200px; height: 100px"
                                            InputAttributes="@(new Dictionary<string,object>(){{ "aria-label", "select company" }})"
                                            Change="@(args => OnSelectVersionOfApp(app))" />
@@ -44,36 +46,64 @@
                     }
                 </Template>
             </RadzenDataGridColumn>
+            <RadzenDataGridColumn Property="@nameof(ApplicationView.Description)" Title="Changelog" />
+            <RadzenDataGridColumn TItem="ApplicationView" Context="ApplicationView"
+                                  TextAlign="TextAlign.Center" Frozen="true" Filterable="false" Sortable="false"
+                                  FrozenPosition="FrozenColumnPosition.Right" Title="Action" Width="140px">
+                <Template Context="ApplicationView">
+                    <RadzenButton Icon="delete" Click="@(args => DeleteCompatibility(ApplicationView))" @onclick:stopPropagation="true" />
+                </Template>
+            </RadzenDataGridColumn>
+
         </Columns>
     </RadzenDataGrid>
 }
-
+else if (SelectedAppVersion != null && !string.IsNullOrWhiteSpace(ApplicationName))
+{
+    <h3>Version @SelectedAppVersion?.Version of application @ApplicationName does not use any other version</h3>
+}
 
 @code {
     [Parameter]
-    //public Action<KeyValuePair<int, int>>? OnAppVersionClicked { get; set; }
     public EventCallback<KeyValuePair<int, int>> OnAppVersionClicked { get; set; }
 
-    private IList<ApplicationView> AppsViews { get; set; } = [];
+    [Parameter]
+    public EventCallback<KeyValuePair<int, int>> OnAppCompatibilityDelete { get; set; }
 
-    private string ApplicationName { get; set; } = "ERROR";
+    [Parameter]
+    public IList<ApplicationView> AppsViews { get; set; } = [];
+
+    [Parameter]
+    public string ApplicationName { get; set; } = "ERROR";
+
+    [Parameter]
+    public AppVersionDTO? SelectedAppVersion { get; set; }
 
     private int? dataGrisAppVersionSelectedValue;
-
-    private AppVersion? selectedAppVersion;
 
     private IList<ApplicationView>? SelectedCompatibilityApps;
 
     private bool StopBubble = false;
 
-    public void AddParms(AppVersion appVersion, string? applicationName, IList<Application> compatibleApps)
+    protected override void OnInitialized()
     {
-        ApplicationName = applicationName ?? "NO_APP_NAME_FIX_ME";
-        selectedAppVersion = appVersion;
-        AppsViews = compatibleApps.ToList().ConvertAll(Mappers.MapApplication_to_ApplicationView);
+        if (SelectedAppVersion != null)
+            UpdateCompatibilityForVersion(SelectedAppVersion.Id);
 
-        UpdateCompatibilityForVersion(appVersion.Id);
-        StateHasChanged();
+        base.OnInitialized();
+    }
+
+    private async Task DeleteCompatibility(ApplicationView deleteAppCompatibility)
+    {
+        if (deleteAppCompatibility.SelectedAppVersion == null || SelectedAppVersion == null)
+        {
+            ErrorNotify("Cannot remove compatibility");
+            return;
+        }
+
+        await OnAppCompatibilityDelete.InvokeAsync(new KeyValuePair<int, int>(
+            SelectedAppVersion.Id, deleteAppCompatibility.SelectedAppVersion.Id));
+
     }
 
     private async Task OnSelectVersionOfApp(ApplicationView app)
@@ -81,15 +111,15 @@
         if (!dataGrisAppVersionSelectedValue.HasValue)
             return;
 
+        StopBubble = true;
+
         if (app.SelectedAppVersion != null)
             await OnAppVersionClicked.InvokeAsync(new KeyValuePair<int, int>(app.Id, dataGrisAppVersionSelectedValue.Value));
-
-        StopBubble = true;
     }
 
     private async Task OnRowClick(DataGridRowMouseEventArgs<ApplicationView> clickedApp)
     {
-        if (StopBubble) // HAX radzen and his stop propagation
+        if (StopBubble) // HAX Radzen and his stop propagation
         {
             StopBubble = false;
             return;
@@ -99,22 +129,21 @@
             return;
 
         await OnAppVersionClicked.InvokeAsync(new KeyValuePair<int, int>
-            (clickedApp.Data.Id, clickedApp.Data.SelectedAppVersion.Id));
+           (clickedApp.Data.Id, clickedApp.Data.SelectedAppVersion.Id));
     }
 
     private void UpdateCompatibilityForVersion(int versionId)
     {
-        if (selectedAppVersion == null)
+        if (SelectedAppVersion == null)
             return;
 
-        var compatibilitiesForVersion = selectedAppVersion.Compatibilities ?? new List<AppCompatibility>
-            ();
+        var compatibilitiesForVersion = SelectedAppVersion.Compatibilities;
         SetSelectedCompatibilityApps(compatibilitiesForVersion);
 
         UpdateSelectedVersionsForCompatibleApps(compatibilitiesForVersion);
     }
 
-    private void SetSelectedCompatibilityApps(List<AppCompatibility> appCompatibilities)
+    private void SetSelectedCompatibilityApps(List<AppCompatibilityDTO> appCompatibilities)
     {
         if (appCompatibilities == null || !appCompatibilities.Any())
         {
@@ -123,11 +152,11 @@
             return;
         }
 
-        var compatibleAppIds = appCompatibilities.Select(f => f.CompatibleWithAppId).ToList();
-        SelectedCompatibilityApps = AppsViews.Where(x => compatibleAppIds.Contains(x.Id)).ToList();
+        var compatibleAppVersionsIds = appCompatibilities.Select(f => f.CompatibleWithVersionId).ToList();
+        SelectedCompatibilityApps = AppsViews.Where(x => x.Versions.Select(g => g.AppId).ToList().Contains(x.Id)).ToList();
     }
 
-    private void UpdateSelectedVersionsForCompatibleApps(List<AppCompatibility>
+    private void UpdateSelectedVersionsForCompatibleApps(List<AppCompatibilityDTO>
         compatibilities)
     {
         if (compatibilities == null || !compatibilities.Any())
@@ -135,11 +164,22 @@
 
         foreach (var app in SelectedCompatibilityApps ?? [])
         {
-            var compatibility = compatibilities.FirstOrDefault(c => c.CompatibleWithAppId == app.Id);
+            var compatibility = compatibilities.FirstOrDefault(c =>
+                app.Versions.Select(x => x.Id).ToList().Contains(c.CompatibleWithVersionId));
             if (compatibility != null)
             {
-                app.SelectedAppVersion = app.Versions.FirstOrDefault(v => v.Id == compatibility.AppVersionId);
+                app.SelectedAppVersion = app.Versions.FirstOrDefault(v => v.Id == compatibility.CompatibleWithVersionId);
             }
         }
+    }
+
+    private void ErrorNotify(string? error)
+    {
+        NotificationService.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Error,
+                Detail = error ?? "NO_ERROR_FIX_ME",
+                Duration = 3000
+            });
     }
 }

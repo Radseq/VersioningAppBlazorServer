@@ -6,28 +6,39 @@
 
 @inject IVersioningService VersioningService
 @inject NavigationManager Navigation
+@inject NotificationService NotificationService
 
 <PageBody>
     <Body>
         <RadzenStack Orientation="Orientation.Vertical"
-                     JustifyContent="JustifyContent.Normal" Gap="0.5rem" class="">
+                     JustifyContent="JustifyContent.Normal" Gap="0.5rem">
 
             <h3>Add Application</h3>
 
             <RadzenColumn>
-                <RadzenTextBox Placeholder="Application name" Change=@(args => OnNewApplicationNameChange(args)) Name="NewApplicationTextBox" />
+                <RadzenTextBox Placeholder="Enter application name" Change=@(args => OnNewApplicationNameChange(args)) Name="NewApplicationTextBox" />
             </RadzenColumn>
 
+            <RadzenRow>
+                <RadzenColumn Size="12" SizeMD="12" SizeLG="5">
+                    <RadzenCard>
+                        <RadzenText TextStyle="TextStyle.Subtitle2" TagName="TagName.H3">Short application description, 200 characters</RadzenText>
+                        <RadzenTextArea @bind-Value=@NewApplicationToCreate.Description @oninput="@(args => NewApplicationToCreate.Description = $"{args.Value}")" MaxLength="@maxLength" Style="width: 100%" aria-label="application note here" />
+                        <span style="font-style: italic;">@($"{NewApplicationToCreate.Description.Length}/{maxLength}")</span>
+                    </RadzenCard>
+                </RadzenColumn>
+            </RadzenRow>
 
             <VersioningAppBlazorServer.Components.VersioningComp.VersionNumeric MajorMin="1"
-                                                                    MinorMin="0"
-                                                                    PatchMin="0"
-                                                                    OnNumericMajorSet="@HandleMajorVersionChange"
-                                                                    OnNumericMinorSet="@HandleMinorVersionChange"
-                                                                    OnNumericPatchSet="@HandlePatchVersionChange" />
+                                                                                MinorMin="0"
+                                                                                PatchMin="0"
+                                                                                OnNumericMajorSet="@HandleMajorVersionChange"
+                                                                                OnNumericMinorSet="@HandleMinorVersionChange"
+                                                                                OnNumericPatchSet="@HandlePatchVersionChange" />
+
             @if (ApplicationsToPickUp.Count > 0)
             {
-                <h3>Exists applications to choose</h3>
+                <h3>Available for Selection</h3>
                 <RadzenRow>
                     @foreach (var item in ApplicationsToPickUp)
                     {
@@ -47,7 +58,7 @@
             }
             @if (ApplicationsPicked.Count > 0)
             {
-                <h3>Application picked</h3>
+                <h3>Selected</h3>
                 <RadzenRow>
                     @foreach (var item in ApplicationsPicked)
                     {
@@ -61,29 +72,31 @@
                         </RadzenColumn>
                     }
                 </RadzenRow>
-                <RadzenColumn>
-                    <RadzenButton ButtonStyle="ButtonStyle.Primary" Text="Add" Variant="Variant.Flat" Click="@AddButtonClick" />
-                </RadzenColumn>
             }
+            <RadzenColumn>
+                <RadzenButton ButtonStyle="ButtonStyle.Primary" Text="Add" Variant="Variant.Flat" Click="@AddButtonClick" />
+            </RadzenColumn>
         </RadzenStack>
     </Body>
 </PageBody>
 
 @code {
-    private IList<Application> Applications { get; set; } = [];
+    private IList<ApplicationDTO> Applications { get; set; } = [];
 
-    private Application NewApplicationToCreate = new();
+    private ApplicationDTO NewApplicationToCreate = new();
 
-    public IList<Application> ApplicationsToPickUp { get; set; } = [];
+    public IList<ApplicationDTO> ApplicationsToPickUp { get; set; } = [];
 
     public IList<ApplicationPicked> ApplicationsPicked { get; set; } = [];
+
+    private const int maxLength = 200;
 
     private void OnNewApplicationNameChange(string value)
     {
         NewApplicationToCreate.Name = value;
     }
 
-    private void OnSelectAppToPickUp(Application app, int versionId)
+    private void OnSelectAppToPickUp(ApplicationDTO app, int versionId)
     {
         ApplicationsToPickUp.Remove(app);
 
@@ -109,27 +122,47 @@
 
     protected async Task AddButtonClick(MouseEventArgs args)
     {
-        foreach (var item in ApplicationsPicked)
+        try
         {
-            NewApplicationToCreate.Versions[0].Compatibilities.Add(new AppCompatibility()
-                {
-                    AppVersionId = item.Version.Id,
-                    CompatibleWithAppId = item.Id,
-                });
+            if (string.IsNullOrWhiteSpace(NewApplicationToCreate.Name))
+            {
+                ErrorNotify("No application name!");
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(NewApplicationToCreate.Description))
+            {
+                ErrorNotify("No application description!");
+                return;
+            }
+
+            foreach (var item in ApplicationsPicked)
+            {
+                NewApplicationToCreate.Versions[0].Compatibilities.Add(new AppCompatibilityDTO()
+                    {
+                        CompatibleWithVersionId = item.Version.Id
+                    });
+            }
+
+            var newApplication = await VersioningService.AddNewApplication(NewApplicationToCreate, NewApplicationToCreate.Versions[0],
+                NewApplicationToCreate.Versions[0].Compatibilities);
+            if (newApplication.IsSuccess)
+                Navigation.NavigateTo($"AppVersionView/{newApplication.Value.Key}/{newApplication.Value.Value}");
+            else
+                ErrorNotify(newApplication.ErrorData?.Description);
+
+            ApplicationsToPickUp = Applications.Where(x => x.Versions.Count > 0).ToList().ConvertAll(Copys.Copy);
+            SortApplicationsToPickUp();
+            ApplicationsPicked.Clear();
+            NewApplicationToCreate = new();
+            AddVersion();
+
+            StateHasChanged();
         }
-
-        var a = await VersioningService.AddNewApplication(NewApplicationToCreate, NewApplicationToCreate.Versions[0],
-            NewApplicationToCreate.Versions[0].Compatibilities);
-        if (a.IsSuccess)
-            Navigation.NavigateTo($"AppVersionView/{a.Value.Key}/{a.Value.Value}");
-
-        ApplicationsToPickUp = Applications.ToList().ConvertAll(Copys.Copy);
-        SortApplicationsToPickUp();
-        ApplicationsPicked.Clear();
-        NewApplicationToCreate = new();
-        AddVersion();
-
-        StateHasChanged();
+        catch (Exception ex)
+        {
+            ErrorNotify(ex.Message);
+        }
     }
 
     private void SortApplicationsToPickUp()
@@ -160,9 +193,12 @@
         AddVersion();
 
         var apps = await VersioningService.GetAllApplications();
-        Applications = apps.Value ?? [];
+        if (apps.IsSuccess)
+            Applications = apps.Value ?? [];
+        else
+            ErrorNotify(apps.ErrorData?.Description);
 
-        ApplicationsToPickUp = Applications.ToList().ConvertAll(Copys.Copy);
+        ApplicationsToPickUp = Applications.Where(x => x.Versions.Count > 0).ToList().ConvertAll(Copys.Copy);
         SortApplicationsToPickUp();
 
         await base.OnInitializedAsync();
@@ -170,13 +206,23 @@
 
     private void AddVersion()
     {
-        NewApplicationToCreate.Versions.Add(new AppVersion()
+        NewApplicationToCreate.Versions.Add(new AppVersionDTO()
             {
                 Compatibilities = [],
                 AppId = NewApplicationToCreate.Id,
                 Major = 1,
                 Minor = 0,
                 Patch = 0
+            });
+    }
+
+    private void ErrorNotify(string? error)
+    {
+        NotificationService.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Error,
+                Detail = error ?? "NO_ERROR_FIX_ME",
+                Duration = 3000
             });
     }
 }

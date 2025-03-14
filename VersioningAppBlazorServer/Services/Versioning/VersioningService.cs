@@ -1,151 +1,236 @@
-﻿using VersioningAppBlazorServer.Models;
+﻿using EFDataAccessLib.Repos;
+using EFDataAccessLib.Repos.Versioning;
+using Newtonsoft.Json;
+using VersioningAppBlazorServer.Models;
 using VersioningAppBlazorServer.Models.UI;
+using VersioningAppBlazorServer.Utils;
 using ReturnTypeWrapper;
+using EFDataAccessLib.Models;
+
 
 namespace VersioningAppBlazorServer.Services.Versioning;
 
 public class VersioningService : IVersioningService
 {
-    private List<Application> Applications = [];
-    private List<AppVersion> AppVersions = [];
-    private List<AppCompatibility> AppCompatibilities = [];
+    private readonly ILogger<VersioningService> logger;
+    private readonly IRepoApplication repoApplication;
+    private readonly IRepoAppVersion repoAppVersion;
+    private readonly IRepoAppCompatibility repoAppCompatibility;
+    private readonly IDatabaseTransactionOperation databaseTransactionOperation;
 
-    public VersioningService()
+    public VersioningService(ILogger<VersioningService> _logger, IRepoApplication _repoApplication,
+        IRepoAppVersion _repoAppVersion, IRepoAppCompatibility _repoAppCompatibility,
+        IDatabaseTransactionOperation _databaseTransactionOperation)
     {
-        if (Applications.Count == 0 || AppVersions.Count == 0 || AppCompatibilities.Count == 0)
-        {
-            // Create 3 applications
-            var app1 = new Application { Id = 1, Name = "www" };
-            var app2 = new Application { Id = 2, Name = "api" };
-            var app3 = new Application { Id = 3, Name = "api2" };
-
-            // Add versions to App1
-            var app1Version1 = new AppVersion { Id = 1, AppId = 1, Major = 1, Minor = 0, Patch = 0 };
-            var app1Version2 = new AppVersion { Id = 2, AppId = 1, Major = 1, Minor = 1, Patch = 0 };
-            app1.Versions.Add(app1Version1);
-            app1.Versions.Add(app1Version2);
-            app1.Versions = app1.Versions.OrderByDescending(x => x.Major).ThenByDescending(g => g.Minor).ThenByDescending(r => r.Patch).ToList();
-
-            // Add versions to App2
-            var app2Version1 = new AppVersion { Id = 3, AppId = 2, Major = 2, Minor = 0, Patch = 0 };
-            var app2Version2 = new AppVersion { Id = 4, AppId = 2, Major = 2, Minor = 1, Patch = 0 };
-            app2.Versions.Add(app2Version1);
-            app2.Versions.Add(app2Version2);
-            app2.Versions = app2.Versions.OrderByDescending(x => x.Major).ThenByDescending(g => g.Minor).ThenByDescending(r => r.Patch).ToList();
-
-            // Add versions to App3
-            var app3Version1 = new AppVersion { Id = 5, AppId = 3, Major = 3, Minor = 0, Patch = 0 };
-            var app3Version2 = new AppVersion { Id = 6, AppId = 3, Major = 3, Minor = 1, Patch = 0 };
-            app3.Versions.Add(app3Version1);
-            app3.Versions.Add(app3Version2);
-            app3.Versions = app3.Versions.OrderByDescending(x => x.Major).ThenByDescending(g => g.Minor).ThenByDescending(r => r.Patch).ToList();
-
-            // Add compatibilities
-            var compatibility1 = new AppCompatibility { Id = 1, AppVersionId = 3, CompatibleWithAppId = 2 };
-            var compatibility2 = new AppCompatibility { Id = 2, AppVersionId = 6, CompatibleWithAppId = 3 };
-            app1Version1.Compatibilities.Add(compatibility1);
-            app1Version1.Compatibilities.Add(compatibility2);
-
-            var compatibility3 = new AppCompatibility { Id = 3, AppVersionId = 1, CompatibleWithAppId = 1 };
-            app2Version1.Compatibilities.Add(compatibility3);
-
-            var compatibility4 = new AppCompatibility { Id = 4, AppVersionId = 1, CompatibleWithAppId = 1 };
-            app3Version2.Compatibilities.Add(compatibility4);
-
-            Applications = [app1, app2, app3];
-            AppVersions = [app1Version1, app1Version2, app2Version1, app2Version2, app3Version1, app3Version2];
-            AppCompatibilities = [compatibility1, compatibility2, compatibility3, compatibility4];
-        }
+        logger = _logger;
+        repoApplication = _repoApplication;
+        repoAppVersion = _repoAppVersion;
+        repoAppCompatibility = _repoAppCompatibility;
+        databaseTransactionOperation = _databaseTransactionOperation;
     }
 
-    public async Task<MessageResult<KeyValuePair<int, int>>> AddNewApplication(Application application, AppVersion appVersion,
-        List<AppCompatibility> compatibilities)
+    public async Task<MessageResult<KeyValuePair<int, int>>> AddNewApplication(ApplicationDTO application, AppVersionDTO appVersion,
+        List<AppCompatibilityDTO> compatibilities)
     {
         try
         {
-            application.Id = Applications.Max(x => x.Id) + 1;
+            if (string.IsNullOrWhiteSpace(application.Name))
+                return MessageResult<KeyValuePair<int, int>>.FailureErrorNumberExtract(ErrorList._204);
 
-            var compLastId = AppCompatibilities.Max(x => x.Id);
+            var nameExists = await repoApplication.FirstOrDefaultAsync(x => x.Name.ToLower() == application.Name.ToLower());
+            if (nameExists != null)
+                return MessageResult<KeyValuePair<int, int>>.FailureErrorNumberExtract(ErrorList._203);
 
-            foreach (var item in compatibilities)
+            await databaseTransactionOperation.StartAsync();
+
+            var newApplication = await repoApplication.AddOneAsync(new EFDataAccessLib.Models.Application()
             {
-                compLastId += 1;
-                item.Id = compLastId;
+                Name = application.Name,
+                Description = application.Description
+            });
+
+            await databaseTransactionOperation.SaveAsync();
+
+            var newAppVersion = Mappers.MapToDB(application.Versions[0]);
+            newAppVersion.CompatibilitySourceVersions.Clear();
+            newAppVersion.CompatibilityTargetVersions.Clear();
+            newAppVersion.ApplicationId = newApplication.Id;
+
+            newAppVersion = await repoAppVersion.AddOneAsync(newAppVersion);
+
+            await databaseTransactionOperation.SaveAsync();
+
+            foreach (var item in application.Versions[0].Compatibilities)
+            {
+                var compAdd = Mappers.MapToDB(item);
+                compAdd.SourceVersionId = newAppVersion.Id;
+                var comp = await repoAppCompatibility.AddOneAsync(compAdd);
             }
 
-            foreach (var item in appVersion.Compatibilities)
-            {
-                var comp = compatibilities.FirstOrDefault(x => x.Id == item.Id);
-                if (comp != null)
-                    item.Id = comp.Id;
-            }
+            await databaseTransactionOperation.EndAsync();
 
-            appVersion.Id = AppVersions.Max(x => x.Id) + 1;
-            appVersion.AppId = application.Id;
-            //application.Versions.Clear();
-            //application.Versions.Add(appVersion);
-
-            AppVersions.Add(appVersion);
-
-            AppCompatibilities.AddRange(compatibilities);
-
-            Applications.Add(application);
-
-            return MessageResult<KeyValuePair<int, int>>.Success(new KeyValuePair<int, int>(application.Id, appVersion.Id));
+            return MessageResult<KeyValuePair<int, int>>.Success(new KeyValuePair<int, int>(newApplication.Id, newApplication.AppVersions.ElementAt(0).Id));
         }
         catch (Exception ex)
         {
-            throw;
+            await databaseTransactionOperation.RollBackAsync();
+
+            logger.LogError(ex, "Can't add new application, json = {json}", JsonConvert.SerializeObject(application));
+            return MessageResult<KeyValuePair<int, int>>.FailureErrorNumberExtract(ErrorList._201);
         }
     }
 
-    public async Task<MessageResult<int>> AddNewVersion(AppVersion appVersion, List<AppCompatibility> compatibilities)
+    public async Task<MessageResult<int>> AddNewVersion(AppVersionDTO appVersion, List<AppCompatibilityDTO> compatibilities)
     {
         try
         {
-            var application = Applications.FirstOrDefault(x => x.Id == appVersion.AppId);
+            var application = await repoApplication.GetByIdAsync(appVersion.AppId);
             if (application == null)
-                throw new NotImplementedException();
+                return MessageResult<int>.FailureErrorNumberExtract(ErrorList._202);
 
-            appVersion.Id = AppVersions.Max(x => x.Id) + 1;
+            var newAppVersion = Mappers.MapToDB(appVersion);
+            newAppVersion.CompatibilitySourceVersions.Clear();
+            newAppVersion.CompatibilityTargetVersions.Clear();
+            newAppVersion.ApplicationId = application.Id;
 
-            var compLastId = AppCompatibilities.Max(x => x.Id);
+            newAppVersion = await repoAppVersion.AddOneAsync(newAppVersion);
 
-            foreach (var item in compatibilities)
-            {
-                compLastId += 1;
-                item.Id = compLastId;
-            }
+            await databaseTransactionOperation.SaveAsync();
 
             foreach (var item in appVersion.Compatibilities)
             {
-                var comp = compatibilities.FirstOrDefault(x => x.Id == item.Id);
-                if (comp != null)
-                    item.Id = comp.Id;
+                var compAdd = Mappers.MapToDB(item);
+                compAdd.SourceVersionId = newAppVersion.Id;
+                var comp = await repoAppCompatibility.AddOneAsync(compAdd);
             }
+            await databaseTransactionOperation.SaveAsync();
 
-            application.Versions.Add(appVersion);
-            AppVersions.Add(appVersion);
-            AppCompatibilities.AddRange(compatibilities);
+            await databaseTransactionOperation.EndAsync();
 
-            return MessageResult<int>.Success(appVersion.Id);
+            return MessageResult<int>.Success(newAppVersion.Id);
         }
         catch (Exception ex)
         {
-            throw;
+            await databaseTransactionOperation.RollBackAsync();
+
+            logger.LogError(ex, "Can't add new application version, json = {json}", JsonConvert.SerializeObject(appVersion));
+            return MessageResult<int>.FailureErrorNumberExtract(ErrorList._301);
         }
     }
 
-    public async Task<MessageResult<IList<Application>>> GetAllApplications()
+    public async Task<MessageResult> AddNewVersionCompatibilities(int versionId, List<AppCompatibilityDTO> compatibilities)
     {
         try
         {
-            return MessageResult<IList<Application>>.Success(Applications);
+            var applicationVersion = await repoAppVersion.GetByIdAsync(versionId);
+            if (applicationVersion == null)
+                return MessageResult.FailureErrorNumberExtract(ErrorList._302);
+
+            foreach (var item in compatibilities)
+            {
+                var compAdd = Mappers.MapToDB(item);
+                var comp = await repoAppCompatibility.AddOneAsync(compAdd);
+            }
+            await databaseTransactionOperation.SaveAsync();
+
+            return MessageResult.Success();
         }
         catch (Exception ex)
         {
+            logger.LogError(ex, "Can't add new application version compatibilities, " +
+                "compatibilities json = {json}, versionId = {versionId}", JsonConvert.SerializeObject(compatibilities), versionId);
+            return MessageResult.FailureErrorNumberExtract(ErrorList._401);
+        }
+    }
 
-            throw;
+    public async Task<MessageResult> DeleteAppCompatibility(int appVersionId, int appVersionIdToDelete)
+    {
+        try
+        {
+            var compatibilityVersion = await repoAppCompatibility.FirstOrDefaultAsync(x => x.SourceVersionId == appVersionId &&
+             x.TargetVersionId == appVersionIdToDelete);
+
+            if (compatibilityVersion == null)
+                return MessageResult.FailureErrorNumberExtract(ErrorList._403);
+
+            repoAppCompatibility.Remove(compatibilityVersion);
+
+            await databaseTransactionOperation.SaveAsync();
+
+            return MessageResult.Success();
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Can't Delete App Compatibility app Version Id = {appVersionId}, " +
+                "app Version Id To Delete = {appVersionIdToDelete}", appVersionId, appVersionIdToDelete);
+            return MessageResult.FailureErrorNumberExtract(ErrorList._402);
+        }
+    }
+
+    public async Task<MessageResult> DeleteApplication(int appId)
+    {
+        try
+        {
+            var application = await repoApplication.GetByIdAsync(appId);
+            if (application == null)
+                return MessageResult.FailureErrorNumberExtract(ErrorList._202);
+
+            foreach (var item in application.AppVersions)
+            {
+                var deleteResult = await DeleteApplicationVersion(item.Id);
+                if (deleteResult.HasFailed)
+                    return MessageResult.Failure(deleteResult.ErrorData!);
+            }
+            repoApplication.Remove(application);
+
+            await databaseTransactionOperation.SaveAsync();
+
+            return MessageResult.Success();
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Can't Delete Application, id = {id}", appId);
+            return MessageResult.FailureErrorNumberExtract(ErrorList._205);
+        }
+    }
+
+    public async Task<MessageResult> DeleteApplicationVersion(int appVersionId)
+    {
+        try
+        {
+            var appVersion = await repoAppVersion.GetByIdAsync(appVersionId);
+            if (appVersion == null)
+                return MessageResult.FailureErrorNumberExtract(ErrorList._302);
+
+            repoAppCompatibility.RemoveRange(appVersion.CompatibilitySourceVersions);
+            repoAppCompatibility.RemoveRange(appVersion.CompatibilityTargetVersions);
+            repoAppVersion.Remove(appVersion);
+
+            await databaseTransactionOperation.SaveAsync();
+
+            return MessageResult.Success();
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Can't Delete Application version, id = {id}", appVersionId);
+            return MessageResult.FailureErrorNumberExtract(ErrorList._303);
+        }
+    }
+
+    public async Task<MessageResult<IList<ApplicationDTO>>> GetAllApplications()
+    {
+        try
+        {
+            var result = new List<ApplicationDTO>();
+
+            var applicationsDb = await repoApplication.GetAllAsync();
+
+            return MessageResult<IList<ApplicationDTO>>.Success(applicationsDb.ToList().ConvertAll(Mappers.MapToDTO));
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Can't get all Applications");
+            return MessageResult<IList<ApplicationDTO>>.FailureErrorNumberExtract(ErrorList._206);
         }
     }
 
@@ -154,75 +239,103 @@ public class VersioningService : IVersioningService
         try
         {
             var result = new List<DropDownItem>();
-            foreach (var application in Applications)
+
+            var applicationsDb = await repoApplication.GetAllAsync();
+
+            foreach (var item in applicationsDb)
             {
                 result.Add(new DropDownItem()
                 {
-                    Id = application.Id,
-                    Value = application.Name
+                    Id = item.Id,
+                    Value = item.Name
                 });
             }
+
             return MessageResult<List<DropDownItem>>.Success(result);
         }
         catch (Exception ex)
         {
-            throw;
+            logger.LogError(ex, "Can't get all Applications Names");
+            return MessageResult<List<DropDownItem>>.FailureErrorNumberExtract(ErrorList._207);
         }
     }
 
-    public async Task<MessageResult<Application>> GetApplicationById(int id)
+    public async Task<MessageResult<ApplicationDTO>> GetApplicationById(int id)
     {
         try
         {
-            var application = Applications.FirstOrDefault(x => x.Id == id);
+            var application = await repoApplication.GetByIdAsync(id);
             if (application == null)
-                throw new NotImplementedException();
+                return MessageResult<ApplicationDTO>.FailureErrorNumberExtract(ErrorList._202);
 
-            application.Versions = application.Versions.OrderByDescending(x => x.Id).ToList();
+            application.AppVersions = application.AppVersions.OrderByDescending(x => x.Id).ToList();
 
-            return MessageResult<Application>.Success(application);
+            return MessageResult<ApplicationDTO>.Success(Mappers.MapToDTO(application));
         }
         catch (Exception ex)
         {
-            throw;
+            logger.LogError(ex, "Can't get Application by id = {id}", id);
+            return MessageResult<ApplicationDTO>.FailureErrorNumberExtract(ErrorList._202);
         }
     }
 
-    public async Task<MessageResult<AppVersion>> GetAppVersion(int appVersionId)
+    public async Task<MessageResult<AppVersionDTO>> GetAppVersion(int appVersionId)
     {
         try
         {
-            var applicationVersion = AppVersions.FirstOrDefault(x => x.Id == appVersionId);
+            var applicationVersion = await repoAppVersion.GetByIdAsync(appVersionId);
             if (applicationVersion == null)
-                throw new NotImplementedException();
+                return MessageResult<AppVersionDTO>.FailureErrorNumberExtract(ErrorList._302);
 
-            return MessageResult<AppVersion>.Success(applicationVersion);
+            return MessageResult<AppVersionDTO>.Success(Mappers.MapToDTO(applicationVersion));
         }
         catch (Exception ex)
         {
-            throw;
+            logger.LogError(ex, "Can't get Application version by id = {id}", appVersionId);
+            return MessageResult<AppVersionDTO>.FailureErrorNumberExtract(ErrorList._302);
         }
     }
 
-    public async Task<MessageResult<IList<Application>>> GetCompatibilityApplications(int appVersionId)
+    public async Task<MessageResult<IList<ApplicationDTO>>> GetCompatibilityApplications(int appVersionId)
     {
         try
         {
-            var applicationVersion = AppVersions.FirstOrDefault(x => x.Id == appVersionId);
+            var applicationVersion = await repoAppVersion.GetByIdAsync(appVersionId);
             if (applicationVersion == null)
-                throw new NotImplementedException();
+                return MessageResult<IList<ApplicationDTO>>.FailureErrorNumberExtract(ErrorList._302);
 
-            var compatibilitiesForVersion = applicationVersion.Compatibilities ?? [];
+            var AppCompatibilities = await repoAppCompatibility.GetWhereAsync(x => x.SourceVersionId == appVersionId);
+            var withCompatibleAppVersionIds = AppCompatibilities.Select(f => f.TargetVersionId).ToList();
 
-            var withCompatibleAppIds = AppCompatibilities.Select(f => f.CompatibleWithAppId).ToList();
+            var versions = await repoAppVersion.GetManyAsync(withCompatibleAppVersionIds.ToList());
+            var versionsIds = versions.Select(x => x.ApplicationId);
+            var withCompatibleApps = await repoApplication.GetManyAsync(versionsIds.ToList());
 
-            var withCompatibleApps = Applications.Where(x => withCompatibleAppIds.Contains(x.Id)).ToList();
-
-            return MessageResult<IList<Application>>.Success(withCompatibleApps ?? []);
+            return MessageResult<IList<ApplicationDTO>>.Success(withCompatibleApps.ToList().ConvertAll(Mappers.MapToDTO));
         }
         catch (Exception ex)
         {
-            throw;
+            logger.LogError(ex, "Can't Get Compatibility Applications by version by id = {id}", appVersionId);
+            return MessageResult<IList<ApplicationDTO>>.FailureErrorNumberExtract(ErrorList._404);
+        }
+    }
+
+    public async Task<MessageResult<IList<AppCompatibilityDTO>>> GetVersionCompatibilities(int appVersionId)
+    {
+        try
+        {
+            var applicationVersion = await repoAppVersion.GetByIdAsync(appVersionId);
+            if (applicationVersion == null)
+                return MessageResult<IList<AppCompatibilityDTO>>.FailureErrorNumberExtract(ErrorList._302);
+
+            var AppCompatibilities = await repoAppCompatibility.GetWhereAsync(x => x.SourceVersionId == appVersionId);
+
+            return MessageResult<IList<AppCompatibilityDTO>>.Success(AppCompatibilities.ToList().ConvertAll(Mappers.MapToDTO));
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Can't Get Compatibility Applications by version by id = {id}", appVersionId);
+            return MessageResult<IList<AppCompatibilityDTO>>.FailureErrorNumberExtract(ErrorList._404);
         }
     }
 
@@ -230,12 +343,14 @@ public class VersioningService : IVersioningService
     {
         try
         {
-            var application = Applications.OrderByDescending(x => x.Id).FirstOrDefault(x => x.Id == appId);
+            var application = await repoApplication.GetByIdAsync(appId);
             if (application == null)
-                throw new NotImplementedException();
+                return MessageResult<List<KeyValuePair<int, string>>>.FailureErrorNumberExtract(ErrorList._202);
+
+            var versions = application.AppVersions.ToList().ConvertAll(Mappers.MapToDTO);
 
             var result = new List<KeyValuePair<int, string>>();
-            foreach (var appVersion in application.Versions)
+            foreach (var appVersion in versions)
             {
                 result.Add(new KeyValuePair<int, string>(appVersion.Id, appVersion.Version));
             }
@@ -244,9 +359,8 @@ public class VersioningService : IVersioningService
         }
         catch (Exception ex)
         {
-
-            throw;
+            logger.LogError(ex, "Can't Get Selected App Versions by app id = {id}", appId);
+            return MessageResult<List<KeyValuePair<int, string>>>.FailureErrorNumberExtract(ErrorList._304);
         }
-
     }
 }

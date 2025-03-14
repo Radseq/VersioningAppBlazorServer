@@ -5,12 +5,18 @@
 
 @inject NavigationManager Navigation
 @inject IVersioningService VersioningService
+@inject NotificationService NotificationService
 
 <PageBody>
     <Body>
-
-        <VersioningAppBlazorServer.Components.VersioningComp.ViewAppVersion @ref=@viewAppVersion
-                                                                OnAppVersionClicked="@OnAppVersionClicked" />
+        @if (selectedApp != null && selectedAppVersion != null)
+        {
+            <VersioningAppBlazorServer.Components.VersioningComp.ViewAppVersion ApplicationName="@selectedApp.Name"
+                                                                    AppsViews=@CompatibleApplications.ToList().ConvertAll(Mappers.MapApplication_to_ApplicationView)
+                                                                    SelectedAppVersion=@selectedAppVersion
+                                                                    OnAppVersionClicked="@OnAppVersionClicked"
+                                                                    OnAppCompatibilityDelete="@OnAppCompatibilityDelete" />
+        }
     </Body>
 </PageBody>
 
@@ -20,26 +26,29 @@
     [Parameter]
     public int AppVersionId { get; set; }
 
-    private VersioningAppBlazorServer.Components.VersioningComp.ViewAppVersion viewAppVersion = new();
+    private List<ApplicationDTO> CompatibleApplications { get; set; } = [];
 
-    private Application? selectedApp;
-    private AppVersion? selectedAppVersion;
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (viewAppVersion == null || selectedAppVersion == null)
-            return;
-
-        var compatibleApps = await VersioningService.GetCompatibilityApplications(AppVersionId);
-
-        viewAppVersion.AddParms(selectedAppVersion, selectedApp?.Name, compatibleApps.Value ?? []);
-
-        await base.OnAfterRenderAsync(firstRender);
-    }
+    private ApplicationDTO? selectedApp;
+    private AppVersionDTO? selectedAppVersion;
 
     private void OnAppVersionClicked(KeyValuePair<int, int> appWithVersion)
     {
         Navigation.NavigateTo($"AppVersionView/{appWithVersion.Key}/{appWithVersion.Value}");
+    }
+
+    private async Task OnAppCompatibilityDelete(KeyValuePair<int, int> appVersionIdWithToDeleteVersionId)
+    {
+        var deleteResult = await VersioningService.DeleteAppCompatibility(appVersionIdWithToDeleteVersionId.Key, appVersionIdWithToDeleteVersionId.Value);
+        if (deleteResult.HasFailed)
+            ErrorNotify(deleteResult.ErrorData?.Description);
+
+        var compatibleApps = await VersioningService.GetCompatibilityApplications(appVersionIdWithToDeleteVersionId.Key);
+        if (compatibleApps.IsSuccess)
+            CompatibleApplications = compatibleApps.Value?.ToList() ?? [];
+        else
+            ErrorNotify(compatibleApps.ErrorData?.Description);
+
+        StateHasChanged();
     }
 
     protected override async Task OnInitializedAsync()
@@ -47,10 +56,31 @@
         var app = await VersioningService.GetApplicationById(AppId);
         if (app.IsSuccess)
             selectedApp = app.Value;
+        else
+            ErrorNotify(app.ErrorData?.Description);
 
         var version = await VersioningService.GetAppVersion(AppVersionId);
         if (version.IsSuccess)
             selectedAppVersion = version.Value;
+        else
+            ErrorNotify(version.ErrorData?.Description);
+
+        var compatibleApps = await VersioningService.GetCompatibilityApplications(AppVersionId);
+        if (compatibleApps.IsSuccess)
+            CompatibleApplications = compatibleApps.Value?.ToList() ?? [];
+        else
+            ErrorNotify(compatibleApps.ErrorData?.Description);
+
         await base.OnInitializedAsync();
+    }
+
+    private void ErrorNotify(string? error)
+    {
+        NotificationService.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Error,
+                Detail = error ?? "NO_ERROR_FIX_ME",
+                Duration = 3000
+            });
     }
 }
