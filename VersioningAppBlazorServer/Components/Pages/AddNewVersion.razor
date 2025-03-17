@@ -167,7 +167,10 @@
 
                     });
             }
-            ApplicationsToPickUp.Clear();
+            ApplicationsToPickUp = Applications.Where(x => x.Id != selectedApp?.Id && x.Versions.Count > 0)
+                .ToList().ConvertAll(Copys.Copy);
+            SortApplicationsToPickUp();
+
             ApplicationsPicked.Clear();
 
             if (string.IsNullOrWhiteSpace(NewAppVersion.Description))
@@ -210,7 +213,7 @@
 
     private void HandleMinorVersionChange(int minor)
     {
-        NewAppVersion.Major = minor;
+        NewAppVersion.Minor = minor;
     }
 
     private void HandlePatchVersionChange(int patch)

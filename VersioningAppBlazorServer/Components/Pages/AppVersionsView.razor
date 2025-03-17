@@ -1,17 +1,15 @@
 ﻿@page "/AppVersionsView"
-@using VersioningAppBlazorServer.Models
-@using VersioningAppBlazorServer.Models.UI
-@using VersioningAppBlazorServer.Utils
 
 @inject IVersioningService VersioningService
 @inject NotificationService NotificationService
+@inject DialogService dialogService
 
 @rendermode InteractiveServer
 
 <PageBody>
     <Body>
         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center"
-                     JustifyContent="JustifyContent.Center" Gap="0.5rem" class="rz-p-md-12 rz-p-sm-4 rz-sm-4 rz-md-12">
+                     JustifyContent="JustifyContent.Center" Gap="0.5rem" class="rz-p-md-4 rz-p-sm-2 rz-sm-4 rz-md-12">
             <RadzenLabel Text="Select Application" Component="DropDownSelectApp" />
             <RadzenDropDown @bind-Value=@selectedAppIdDummy Change="@(args => OnChangeApp(args))" Data=@ApplicationNames
                             TextProperty="@nameof(DropDownItem.Value)"
@@ -27,7 +25,25 @@
             }
         </RadzenStack>
         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center"
-                     JustifyContent="JustifyContent.Center" Gap="0.5rem" class="rz-pb-md-12 rz-pb-sm-4">
+                     JustifyContent="JustifyContent.Center" Gap="0.5rem" class="rz-pb-md-4 rz-pb-sm-2">
+            @if (selectedApp != null)
+            {
+                <RadzenCard>
+                    <RadzenText TextStyle="TextStyle.Subtitle2" TagName="TagName.H3">App description</RadzenText>
+                    <RadzenTextArea @bind-Value=@selectedApp.Description Disabled Style="width: 100%" aria-label="application note here" />
+                </RadzenCard>
+            }
+            @if (selectedAppVersion != null)
+            {
+
+                <RadzenCard>
+                    <RadzenText TextStyle="TextStyle.Subtitle2" TagName="TagName.H3">Changelog of version</RadzenText>
+                    <RadzenTextArea @bind-Value=@selectedAppVersion.Description Disabled Style="width: 100%" aria-label="application version changelog here" />
+                </RadzenCard>
+            }
+        </RadzenStack>
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center"
+                     JustifyContent="JustifyContent.Center" Gap="0.5rem" class="rz-pb-md-4 rz-pb-sm-2">
             @if (selectedApp != null)
             {
                 <RadzenButton ButtonStyle="ButtonStyle.Danger" Text="Delete application"
@@ -42,7 +58,7 @@
         @if (selectedApp != null && selectedAppVersion != null)
         {
             <VersioningAppBlazorServer.Components.VersioningComp.ViewAppVersion ApplicationName="@selectedApp.Name"
-                                                                    AppsViews=@CompatibleApplications.ToList().ConvertAll(Mappers.MapApplication_to_ApplicationView)
+                                                                    AppsViews=@CompatibleApplications
                                                                     SelectedAppVersion=@selectedAppVersion
                                                                     OnAppVersionClicked="@OnAppVersionClicked"
                                                                     OnAppCompatibilityDelete="@OnAppCompatibilityDelete" />
@@ -59,7 +75,7 @@
     private AppVersionDTO? selectedAppVersion;
     private int? selectedAppVersionId;
 
-    private List<ApplicationDTO> CompatibleApplications { get; set; } = [];
+    public IList<ApplicationView> CompatibleApplications { get; set; } = [];
 
     private async Task OnChangeApp(object value)
     {
@@ -95,31 +111,12 @@
 
             var compatibleApps = await VersioningService.GetCompatibilityApplications(versionId);
             if (compatibleApps.IsSuccess)
-                CompatibleApplications = compatibleApps.Value?.ToList() ?? [];
+                CompatibleApplications = compatibleApps.Value?.ToList().ConvertAll(Mappers.MapApplication_to_ApplicationView) ?? [];
             else
                 ErrorNotify(compatibleApps.ErrorData?.Description);
 
             StateHasChanged();
         }
-    }
-
-    private async Task OnAppCompatibilityDelete(KeyValuePair<int, int> appVersionIdWithToDeleteVersionId)
-    {
-        var deleteResult = await VersioningService.DeleteAppCompatibility(appVersionIdWithToDeleteVersionId.Key, appVersionIdWithToDeleteVersionId.Value);
-        if (deleteResult.HasFailed)
-        {
-            ErrorNotify(deleteResult.ErrorData?.Description);
-        }
-
-        var compatibleApps = await VersioningService.GetCompatibilityApplications(appVersionIdWithToDeleteVersionId.Key);
-        if (compatibleApps.IsSuccess)
-            CompatibleApplications = compatibleApps.Value?.ToList() ?? [];
-        else
-        {
-            ErrorNotify(compatibleApps.ErrorData?.Description);
-        }
-
-        StateHasChanged();
     }
 
     private async Task OnAppVersionClicked(KeyValuePair<int, int> appWithVersion)
@@ -153,13 +150,37 @@
             {
                 ErrorNotify(compatibleApps.ErrorData?.Description);
             }
-            CompatibleApplications = compatibleApps.Value?.ToList() ?? [];
+            CompatibleApplications = compatibleApps.Value?.ToList().ConvertAll(Mappers.MapApplication_to_ApplicationView) ?? [];
         }
+        StateHasChanged();
+    }
+
+    private async Task OnAppCompatibilityDelete(KeyValuePair<int, int> appVersionIdWithToDeleteVersionId)
+    {
+        var deleteResult = await VersioningService.DeleteAppCompatibility(appVersionIdWithToDeleteVersionId.Key, appVersionIdWithToDeleteVersionId.Value);
+        if (deleteResult.HasFailed)
+        {
+            ErrorNotify(deleteResult.ErrorData?.Description);
+            return;
+        }
+
+        var compatibleApps = await VersioningService.GetCompatibilityApplications(appVersionIdWithToDeleteVersionId.Key);
+        if (compatibleApps.IsSuccess)
+            CompatibleApplications = compatibleApps.Value?.ToList().ConvertAll(Mappers.MapApplication_to_ApplicationView) ?? [];
+        else
+        {
+            ErrorNotify(compatibleApps.ErrorData?.Description);
+        }
+
         StateHasChanged();
     }
 
     private async Task DeleteAppVersionButtonClick(int appVersionId)
     {
+        var confirm = await ConfirmYesNo($"Removing version {selectedAppVersion?.Version} of the application {selectedApp?.Name}");
+        if (!confirm)
+            return;
+
         var deleteResult = await VersioningService.DeleteApplicationVersion(appVersionId);
         if (deleteResult.IsSuccess)
         {
@@ -181,6 +202,10 @@
 
     private async Task DeleteAppButtonClick(int appId)
     {
+        var confirm = await ConfirmYesNo($"Removing the application {selectedApp?.Name}, along with all versions");
+        if (!confirm)
+            return;
+
         var deleteResult = await VersioningService.DeleteApplication(appId);
         if (deleteResult.IsSuccess)
         {
@@ -222,5 +247,18 @@
                 Detail = error ?? "NO_ERROR_FIX_ME",
                 Duration = 3000
             });
+    }
+
+    private async Task<bool> ConfirmYesNo(string text)
+    {
+        var dialogResult = await dialogService.Confirm("Are you sure?", text, new ConfirmOptions()
+            {
+                OkButtonText = "Yes",
+                CancelButtonText = "No",
+                ShowClose = false
+            });
+        if (!dialogResult ?? false)
+            return false;
+        return true;
     }
 }

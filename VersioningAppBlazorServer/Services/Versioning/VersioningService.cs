@@ -5,8 +5,6 @@ using VersioningAppBlazorServer.Models;
 using VersioningAppBlazorServer.Models.UI;
 using VersioningAppBlazorServer.Utils;
 using ReturnTypeWrapper;
-using EFDataAccessLib.Models;
-
 
 namespace VersioningAppBlazorServer.Services.Versioning;
 
@@ -87,6 +85,8 @@ public class VersioningService : IVersioningService
             var application = await repoApplication.GetByIdAsync(appVersion.AppId);
             if (application == null)
                 return MessageResult<int>.FailureErrorNumberExtract(ErrorList._202);
+
+            await databaseTransactionOperation.StartAsync();
 
             var newAppVersion = Mappers.MapToDB(appVersion);
             newAppVersion.CompatibilitySourceVersions.Clear();

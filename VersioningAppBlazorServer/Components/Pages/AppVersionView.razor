@@ -12,7 +12,7 @@
         @if (selectedApp != null && selectedAppVersion != null)
         {
             <VersioningAppBlazorServer.Components.VersioningComp.ViewAppVersion ApplicationName="@selectedApp.Name"
-                                                                    AppsViews=@CompatibleApplications.ToList().ConvertAll(Mappers.MapApplication_to_ApplicationView)
+                                                                    AppsViews=@CompatibleApplications
                                                                     SelectedAppVersion=@selectedAppVersion
                                                                     OnAppVersionClicked="@OnAppVersionClicked"
                                                                     OnAppCompatibilityDelete="@OnAppCompatibilityDelete" />
@@ -26,7 +26,7 @@
     [Parameter]
     public int AppVersionId { get; set; }
 
-    private List<ApplicationDTO> CompatibleApplications { get; set; } = [];
+    public IList<ApplicationView> CompatibleApplications { get; set; } = [];
 
     private ApplicationDTO? selectedApp;
     private AppVersionDTO? selectedAppVersion;
@@ -44,7 +44,7 @@
 
         var compatibleApps = await VersioningService.GetCompatibilityApplications(appVersionIdWithToDeleteVersionId.Key);
         if (compatibleApps.IsSuccess)
-            CompatibleApplications = compatibleApps.Value?.ToList() ?? [];
+            CompatibleApplications = compatibleApps.Value?.ToList().ConvertAll(Mappers.MapApplication_to_ApplicationView) ?? [];
         else
             ErrorNotify(compatibleApps.ErrorData?.Description);
 
@@ -67,7 +67,7 @@
 
         var compatibleApps = await VersioningService.GetCompatibilityApplications(AppVersionId);
         if (compatibleApps.IsSuccess)
-            CompatibleApplications = compatibleApps.Value?.ToList() ?? [];
+            CompatibleApplications = compatibleApps.Value?.ToList().ConvertAll(Mappers.MapApplication_to_ApplicationView) ?? [];
         else
             ErrorNotify(compatibleApps.ErrorData?.Description);
 

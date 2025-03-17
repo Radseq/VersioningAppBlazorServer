@@ -76,7 +76,9 @@
                 return;
             }
 
-            await GenerateAppToPickUp(selectedApp.Id, versionId);
+            ApplicationsPicked.Clear();
+
+            await GenerateAppsToPickUp(selectedApp.Id, versionId);
 
             selectedAppVersion = version.Value;
             selectedAppVersionId = versionId;
@@ -86,31 +88,44 @@
         }
     }
 
-    private async Task GenerateAppToPickUp(int appId, int versionId)
+    private async Task GenerateAppsToPickUp(int appId, int versionId)
     {
-        var versionCompatibilities = await VersioningService.GetVersionCompatibilities(versionId);
-        if (versionCompatibilities.IsSuccess)
-        {
-            var toSkipVersionsIds = versionCompatibilities.Value?.Select(x => x.CompatibleWithVersionId);
-            foreach (var app in Applications)
-            {
-                if (app.Id == appId)
-                    continue;
+        ApplicationsToPickUp.Clear();
 
-                var newAppToPickUp = Copys.Copy(app);
-                List<AppVersionDTO> Versions = [];
-                foreach (var appVersion in app.Versions)
+        var versionCompatibilities = await VersioningService.GetVersionCompatibilities(versionId);
+        if (versionCompatibilities.HasFailed)
+        {
+            ErrorNotify(versionCompatibilities.ErrorData?.Description);
+            return;
+        }
+
+        var toSkipVersionsIds = versionCompatibilities.Value?.Select(x => x.CompatibleWithVersionId);
+        foreach (var app in Applications)
+        {
+            if (app.Id == appId)
+                continue;
+
+            if (toSkipVersionsIds?.Count() > 0)
+            {
+                var appVersionIsAlreadyCompatible = app.Versions.Any(x => toSkipVersionsIds.Contains(x.Id));
+                if (appVersionIsAlreadyCompatible)
                 {
-                    if (toSkipVersionsIds?.Contains(appVersion.Id) == false)
-                    {
-                        Versions.Add(Copys.Copy(appVersion));
-                    }
-                }
-                newAppToPickUp.Versions = Versions;
-                if (newAppToPickUp.Versions.Count == 0)
                     continue;
-                ApplicationsToPickUp.Add(newAppToPickUp);
+                }
             }
+            List<AppVersionDTO> Versions = [];
+            foreach (var appVersion in app.Versions)
+            {
+                if (toSkipVersionsIds?.Contains(appVersion.Id) == false)
+                {
+                    Versions.Add(Copys.Copy(appVersion));
+                }
+            }
+            var newAppToPickUp = Copys.Copy(app);
+            newAppToPickUp.Versions = Versions;
+            if (newAppToPickUp.Versions.Count == 0)
+                continue;
+            ApplicationsToPickUp.Add(newAppToPickUp);
         }
     }
 
@@ -159,6 +174,12 @@
             if (selectedAppVersion == null || selectedApp == null)
                 return;
 
+            if (ApplicationsPicked.Count == 0)
+            {
+                ErrorNotify("No choose any application compatibility");
+                return;
+            }
+
             foreach (var item in ApplicationsPicked)
             {
                 NewAppCompatibilities.Add(new AppCompatibilityDTO()
@@ -167,7 +188,9 @@
                         VersionId = selectedAppVersion.Id
                     });
             }
-            ApplicationsToPickUp.Clear();
+
+
+
             ApplicationsPicked.Clear();
 
             var newVersionResult = await VersioningService.AddNewVersionCompatibilities(selectedAppVersion.Id, NewAppCompatibilities);
@@ -177,6 +200,7 @@
             }
             else
             {
+                await GenerateAppsToPickUp(selectedApp.Id, selectedAppVersion.Id);
                 ErrorNotify(newVersionResult.ErrorData?.Description);
                 NewAppCompatibilities = [];
                 selectedApp = null;

@@ -1,7 +1,5 @@
-﻿@using VersioningAppBlazorServer.Models
-@using VersioningAppBlazorServer.Utils
-
-@inject NotificationService NotificationService
+﻿@inject NotificationService NotificationService
+@inject DialogService dialogService
 
 @if (SelectedCompatibilityApps != null && SelectedCompatibilityApps.Count > 0 && AppsViews.Count > 0)
 {
@@ -46,10 +44,21 @@
                     }
                 </Template>
             </RadzenDataGridColumn>
-            <RadzenDataGridColumn Property="@nameof(ApplicationView.Description)" Title="Changelog" />
+            <RadzenDataGridColumn Title="Changelog">
+                <Template Context="app">
+                    @if (app.SelectedAppVersion != null)
+                    {
+                        @app.SelectedAppVersion.Description
+                    }
+                    else
+                    {
+                        <span>N/A</span>
+                    }
+                </Template>
+            </RadzenDataGridColumn>
             <RadzenDataGridColumn TItem="ApplicationView" Context="ApplicationView"
                                   TextAlign="TextAlign.Center" Frozen="true" Filterable="false" Sortable="false"
-                                  FrozenPosition="FrozenColumnPosition.Right" Title="Action" Width="140px">
+                                  FrozenPosition="FrozenColumnPosition.Right" Title="Action" Width="80px">
                 <Template Context="ApplicationView">
                     <RadzenButton Icon="delete" Click="@(args => DeleteCompatibility(ApplicationView))" @onclick:stopPropagation="true" />
                 </Template>
@@ -85,12 +94,11 @@ else if (SelectedAppVersion != null && !string.IsNullOrWhiteSpace(ApplicationNam
 
     private bool StopBubble = false;
 
-    protected override void OnInitialized()
+    protected override void OnParametersSet()
     {
-        if (SelectedAppVersion != null)
+        base.OnParametersSet();
+        if (SelectedAppVersion != null && AppsViews.Count > 0)
             UpdateCompatibilityForVersion(SelectedAppVersion.Id);
-
-        base.OnInitialized();
     }
 
     private async Task DeleteCompatibility(ApplicationView deleteAppCompatibility)
@@ -100,6 +108,15 @@ else if (SelectedAppVersion != null && !string.IsNullOrWhiteSpace(ApplicationNam
             ErrorNotify("Cannot remove compatibility");
             return;
         }
+
+        var dialogResult = await dialogService.Confirm("Are you sure?", $"Removing compatibility with version {deleteAppCompatibility.SelectedAppVersion.Version} of the application {ApplicationName}", new ConfirmOptions()
+            {
+                OkButtonText = "Tak",
+                CancelButtonText = "Nie",
+                ShowClose = false
+            });
+        if (!dialogResult ?? false)
+            return;
 
         await OnAppCompatibilityDelete.InvokeAsync(new KeyValuePair<int, int>(
             SelectedAppVersion.Id, deleteAppCompatibility.SelectedAppVersion.Id));
