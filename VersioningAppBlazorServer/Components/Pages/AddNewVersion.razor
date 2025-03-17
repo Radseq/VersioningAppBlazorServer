@@ -1,8 +1,4 @@
-﻿@using VersioningAppBlazorServer.Models
-@using VersioningAppBlazorServer.Models.UI
-@using VersioningAppBlazorServer.Utils
-
-@page "/NewApplicationVersion"
+﻿@page "/NewApplicationVersion"
 @rendermode InteractiveServer
 
 @inject NavigationManager Navigation
@@ -11,14 +7,15 @@
 
 <PageBody>
     <Body>
-
         <RadzenStack Orientation="Orientation.Vertical"
                      JustifyContent="JustifyContent.Normal" Gap="0.5rem" class="">
 
             <h3>Add Version</h3>
 
             <RadzenLabel Text="Select Application" Component="DropDownSelectApp" />
-            <RadzenDropDown @bind-Value=@selectedAppIdDummy Change="@(args => OnChangeApp(args))" Data=@ApplicationNames
+            <RadzenDropDown @bind-Value=@selectedAppIdDummy Change="@(args => OnChangeApp(args))"
+                            Data=@ApplicationNames
+                            AllowFiltering="true"
                             TextProperty="@nameof(DropDownItem.Value)"
                             ValueProperty="@nameof(DropDownItem.Id)" Style="width: 100%; max-width: 400px;" Name="DropDownSelectApp" />
 

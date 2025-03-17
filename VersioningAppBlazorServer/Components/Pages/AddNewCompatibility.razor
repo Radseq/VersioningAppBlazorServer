@@ -1,8 +1,4 @@
-﻿@using VersioningAppBlazorServer.Models
-@using VersioningAppBlazorServer.Models.UI
-@using VersioningAppBlazorServer.Utils
-
-@page "/AddNewCompatibility"
+﻿@page "/AddNewCompatibility"
 
 @rendermode InteractiveServer
 
@@ -19,7 +15,9 @@
             <h3>Add New Compatibility</h3>
 
             <RadzenLabel Text="Select Application" Component="DropDownSelectApp" />
-            <RadzenDropDown @bind-Value=@selectedAppIdDummy Change="@(args => OnChangeApp(args))" Data=@ApplicationNames
+            <RadzenDropDown @bind-Value=@selectedAppIdDummy Change="@(args => OnChangeApp(args))"
+                            Data=@ApplicationNames
+                            AllowFiltering="true"
                             TextProperty="@nameof(DropDownItem.Value)"
                             ValueProperty="@nameof(DropDownItem.Id)" Style="width: 100%; max-width: 400px;" Name="DropDownSelectApp" />
 

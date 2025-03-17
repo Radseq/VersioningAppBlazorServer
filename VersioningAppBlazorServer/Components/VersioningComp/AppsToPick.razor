@@ -1,13 +1,10 @@
-﻿@using VersioningAppBlazorServer.Models
-@using VersioningAppBlazorServer.Models.UI
-
-@if (ApplicationsToPickUp.Count > 0)
+﻿@if (ApplicationsToPickUp.Count > 0)
 {
     <h3>Available for Selection</h3>
     <RadzenRow>
         @foreach (var item in ApplicationsToPickUp)
         {
-            <RadzenColumn Size="12" SizeMD="6" SizeLG="4" SizeXL="3">
+            <RadzenColumn Size="6" SizeMD="6" SizeLG="3" SizeXL="2">
                 <div class="shop-item">
                     <div class="item-name">@item.Name</div>
                     <ul class="item-list">

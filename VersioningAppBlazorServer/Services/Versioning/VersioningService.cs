@@ -5,6 +5,7 @@ using VersioningAppBlazorServer.Models;
 using VersioningAppBlazorServer.Models.UI;
 using VersioningAppBlazorServer.Utils;
 using ReturnTypeWrapper;
+using EFDataAccessLib.Models;
 
 namespace VersioningAppBlazorServer.Services.Versioning;
 
@@ -88,6 +89,10 @@ public class VersioningService : IVersioningService
 
             await databaseTransactionOperation.StartAsync();
 
+            var previousVersionId = await repoAppVersion.MaxId(appVersion.AppId);
+
+            var getCompatibilitiesPreviousVersion = await repoAppCompatibility.GetWhereAsync(x => x.SourceVersionId == previousVersionId);
+
             var newAppVersion = Mappers.MapToDB(appVersion);
             newAppVersion.CompatibilitySourceVersions.Clear();
             newAppVersion.CompatibilityTargetVersions.Clear();
@@ -103,6 +108,18 @@ public class VersioningService : IVersioningService
                 compAdd.SourceVersionId = newAppVersion.Id;
                 var comp = await repoAppCompatibility.AddOneAsync(compAdd);
             }
+
+            // inherit
+            foreach (var item in getCompatibilitiesPreviousVersion)
+            {
+                var newCompatibility = new AppCompatibility()
+                {
+                    SourceVersionId = newAppVersion.Id,
+                    TargetVersionId = item.TargetVersionId
+                };
+                var comp = await repoAppCompatibility.AddOneAsync(newCompatibility);
+            }
+
             await databaseTransactionOperation.SaveAsync();
 
             await databaseTransactionOperation.EndAsync();
@@ -250,6 +267,8 @@ public class VersioningService : IVersioningService
                     Value = item.Name
                 });
             }
+
+            result = result.OrderBy(x => x.Value).ToList();
 
             return MessageResult<List<DropDownItem>>.Success(result);
         }
