@@ -1,0 +1,104 @@
+﻿@if (VersionsData.Count > 0)
+{
+    <RadzenDataGrid Data="@VersionsData" TItem="AppVersionDTO" AllowPaging="false" ShowHeader="false"
+                    class="no-header">
+        <Columns>
+            <RadzenDataGridColumn Title="Version" Property="Version" MinWidth="100px"/>
+            <RadzenDataGridColumn TItem="AppVersionDTO" Context="AppVersionDTO" Frozen="true"
+                                  FrozenPosition="FrozenColumnPosition.Right" Width="60px">
+                <Template Context="AppVersionDTO">
+                    @if (AppVersionDTO.Id > CurrentVersionId)
+                    {
+                        <RadzenButton Icon="keyboard_arrow_up" ButtonStyle="ButtonStyle.Success"
+                                      Click="@(args => OnUpdateVersionBtnClick(AppVersionDTO))" />
+                    }
+                    @if (AppVersionDTO.Id < CurrentVersionId)
+                    {
+                        <RadzenButton Icon="keyboard_arrow_down" ButtonStyle="ButtonStyle.Warning"
+                                      Click="@(args => OnDowngradeVersionBtnClick(AppVersionDTO))" />
+                    }
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="AppVersionDTO" Context="AppVersionDTO" Frozen="true"
+                                  FrozenPosition="FrozenColumnPosition.Right" Width="60px">
+                <Template Context="AppVersionDTO">
+                    <RadzenButton Icon="login" ButtonStyle="ButtonStyle.Primary" Click="@(args => OnNavigateToViewBtnClick(AppVersionDTO))" />
+                </Template>
+            </RadzenDataGridColumn>
+
+            <RadzenDataGridColumn TItem="AppVersionDTO" Context="AppVersionDTO" TextAlign="TextAlign.Center"
+                                  Frozen="true"
+                                  FrozenPosition="FrozenColumnPosition.Right" Width="60px">
+                <Template Context="AppVersionDTO">
+                    @if (AppVersionDTO.Id == CurrentVersionId)
+                    {
+                        <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Click="@(args => OnDeleteCompatibilityBtnClick(AppVersionDTO))" />
+                    }
+                </Template>
+            </RadzenDataGridColumn>
+        </Columns>
+    </RadzenDataGrid>
+
+    <style>
+        .no-header .rz-grid-table thead,
+        .no-header .rz-grid-table-fixed thead,
+        .no-header .rz-grid-table-striped thead {
+            display: none !important;
+        }
+
+    </style>
+}
+@code {
+    [Parameter]
+    public List<AppVersionDTO> VersionsData { get; set; } = [];
+
+    [Parameter]
+    public int CurrentVersionId { get; set; }
+
+    [Parameter]
+    public EventCallback<VersionEvent> OnProcessVersionEvent { get; set; }
+
+
+    private async Task OnUpdateVersionBtnClick(AppVersionDTO arg)
+    {
+        await OnProcessVersionEvent.InvokeAsync(new VersionEvent()
+            {
+                AppId = arg.AppId,
+                VersionId = arg.Id,
+                OldVersionId = CurrentVersionId,
+                EventType = VersionEventType.UPGRADE
+            });
+    }
+
+    private async Task OnDowngradeVersionBtnClick(AppVersionDTO arg)
+    {
+        await OnProcessVersionEvent.InvokeAsync(new VersionEvent()
+            {
+                AppId = arg.AppId,
+                VersionId = arg.Id,
+                OldVersionId = CurrentVersionId,
+                EventType = VersionEventType.DOWNGRADE
+            });
+    }
+
+    private async Task OnNavigateToViewBtnClick(AppVersionDTO arg)
+    {
+        await OnProcessVersionEvent.InvokeAsync(new VersionEvent()
+            {
+                AppId = arg.AppId,
+                VersionId = arg.Id,
+                EventType = VersionEventType.NAVIGATE
+            });
+    }
+
+    private async Task OnDeleteCompatibilityBtnClick(AppVersionDTO arg)
+    {
+        await OnProcessVersionEvent.InvokeAsync(new VersionEvent()
+            {
+                AppId = arg.AppId,
+                VersionId = arg.Id,
+                OldVersionId = CurrentVersionId,
+                EventType = VersionEventType.DELETE_COMPATIBILITY
+            });
+    }
+}

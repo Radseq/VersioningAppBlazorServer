@@ -97,7 +97,7 @@
 
         var appVersion = app.Versions.FirstOrDefault(x => x.Id == versionId);
         if (appVersion != null)
-            ApplicationsPicked.Add(Copys.Copy(app, appVersion));
+            ApplicationsPicked.Add(Copies.Copy(app, appVersion));
 
         StateHasChanged();
     }
@@ -108,7 +108,7 @@
 
         var app = Applications.FirstOrDefault(x => x.Id == appPicked.Id);
         if (app != null)
-            ApplicationsToPickUp.Add(Copys.Copy(app));
+            ApplicationsToPickUp.Add(Copies.Copy(app));
 
         SortApplicationsToPickUp();
 
@@ -132,7 +132,7 @@
                 .ThenByDescending(g => g.Minor).ThenByDescending(r => r.Patch).ToList();
 
             ApplicationsToPickUp = Applications.Where(x => x.Id != selectedApp.Id && x.Versions.Count > 0)
-                .ToList().ConvertAll(Copys.Copy);
+                .ToList().ConvertAll(Copies.Copy);
             SortApplicationsToPickUp();
 
             NewAppVersion.AppId = selectedApp.Id;
@@ -165,7 +165,7 @@
                     });
             }
             ApplicationsToPickUp = Applications.Where(x => x.Id != selectedApp?.Id && x.Versions.Count > 0)
-                .ToList().ConvertAll(Copys.Copy);
+                .ToList().ConvertAll(Copies.Copy);
             SortApplicationsToPickUp();
 
             ApplicationsPicked.Clear();

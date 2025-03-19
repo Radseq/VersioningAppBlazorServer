@@ -5,6 +5,7 @@
 @inject NavigationManager Navigation
 @inject IVersioningService VersioningService
 @inject NotificationService NotificationService
+@inject DialogService dialogService
 
 <PageBody>
     <Body>
@@ -13,8 +14,8 @@
             <VersioningAppBlazorServer.Components.VersioningComp.ViewAppVersion ApplicationName="@selectedApp.Name"
                                                                     AppsViews=@CompatibleApplications
                                                                     SelectedAppVersion=@selectedAppVersion
-                                                                    OnAppVersionClicked="@OnAppVersionClicked"
-                                                                    OnAppCompatibilityDelete="@OnAppCompatibilityDelete" />
+                                                                    OnProcessVersionEvent="OnProcessVersionEvent"
+                                                                    @key="selectedAppVersion.Id" />
         }
     </Body>
 </PageBody>
@@ -30,24 +31,84 @@
     private ApplicationDTO? selectedApp;
     private AppVersionDTO? selectedAppVersion;
 
-    private void OnAppVersionClicked(KeyValuePair<int, int> appWithVersion)
+    private async Task OnProcessVersionEvent(VersionEvent versionEvent)
     {
-        Navigation.NavigateTo($"AppVersionView/{appWithVersion.Key}/{appWithVersion.Value}");
+        switch (versionEvent.EventType)
+        {
+            case VersionEventType.UPGRADE:
+                await UpgradeApplicationVersionCompatibility(versionEvent.AppId, versionEvent.OldVersionId, versionEvent.VersionId);
+                break;
+            case VersionEventType.DOWNGRADE:
+                await UpgradeApplicationVersionCompatibility(versionEvent.AppId, versionEvent.OldVersionId, versionEvent.VersionId);
+                break;
+            case VersionEventType.NAVIGATE:
+                Navigation.NavigateTo($"AppVersionView/{versionEvent.AppId}/{versionEvent.VersionId}");
+                break;
+            case VersionEventType.DELETE_COMPATIBILITY:
+                await OnAppCompatibilityDelete(selectedAppVersion!.Id, versionEvent.OldVersionId!.Value);
+                break;
+            case VersionEventType.SHOW_CHANGELOGS:
+                await OnShowLastChangelogs(versionEvent.AppId, versionEvent.VersionId);
+                break;
+            default:
+                ErrorNotify("Error while processing the click on the table.");
+                break;
+        }
     }
 
-    private async Task OnAppCompatibilityDelete(KeyValuePair<int, int> appVersionIdWithToDeleteVersionId)
+    private async Task UpgradeApplicationVersionCompatibility(int appId, int? oldVersionId, int? newVersionId)
     {
-        var deleteResult = await VersioningService.DeleteAppCompatibility(appVersionIdWithToDeleteVersionId.Key, appVersionIdWithToDeleteVersionId.Value);
+        if (!oldVersionId.HasValue || !newVersionId.HasValue)
+            ErrorNotify("No old version available for compatibility change.");
+
+        var result = await VersioningService.UpgradeApplicationVersionCompatibility(appId, oldVersionId!.Value, newVersionId!.Value);
+        if (result.HasFailed)
+            ErrorNotify(result.ErrorData?.Description);
+
+        foreach (var item in selectedAppVersion?.Compatibilities ?? [])
+        {
+            if (item.CompatibleWithVersionId == oldVersionId!.Value)
+            {
+                item.CompatibleWithVersionId = newVersionId!.Value;
+            }
+        }
+
+        var compatibleApps = await VersioningService.GetCompatibilityApplications(selectedAppVersion!.Id);
+        if (compatibleApps.IsSuccess)
+            CompatibleApplications = compatibleApps.Value?.ToList().ConvertAll(Mappers.MapApplication_to_ApplicationView) ?? [];
+        else
+            ErrorNotify(compatibleApps.ErrorData?.Description);
+
+        //StateHasChanged();
+    }
+
+    private async Task OnAppCompatibilityDelete(int appId, int versionId)
+    {
+        var deleteResult = await VersioningService.DeleteAppCompatibility(appId, versionId);
         if (deleteResult.HasFailed)
             ErrorNotify(deleteResult.ErrorData?.Description);
 
-        var compatibleApps = await VersioningService.GetCompatibilityApplications(appVersionIdWithToDeleteVersionId.Key);
+        var compatibleApps = await VersioningService.GetCompatibilityApplications(selectedAppVersion!.Id);
         if (compatibleApps.IsSuccess)
             CompatibleApplications = compatibleApps.Value?.ToList().ConvertAll(Mappers.MapApplication_to_ApplicationView) ?? [];
         else
             ErrorNotify(compatibleApps.ErrorData?.Description);
 
         StateHasChanged();
+    }
+
+    private async Task OnShowLastChangelogs(int appId, int versionId)
+    {
+        var changelogs = await VersioningService.LoadLastChangelogs(appId, versionId);
+        if (changelogs.HasFailed)
+        {
+            ErrorNotify(changelogs.ErrorData?.Description);
+            return;
+        }
+
+        await dialogService.OpenSideAsync<VersioningComp.ShowLastChangelogs>("Last Changelogs",
+            new Dictionary<string, object>() { { "ChangeLogs", changelogs } },
+            options: new SideDialogOptions { CloseDialogOnOverlayClick = true, Position = DialogPosition.Right, ShowMask = true });
     }
 
     protected override async Task OnInitializedAsync()

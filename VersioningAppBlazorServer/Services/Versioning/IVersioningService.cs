@@ -20,4 +20,7 @@ public interface IVersioningService
     Task<MessageResult> DeleteAppCompatibility(int appVersionId, int appVersionIdToDelete);
     Task<MessageResult> DeleteApplication(int appId);
     Task<MessageResult> DeleteApplicationVersion(int appVersionId);
+    Task<MessageResult> UpgradeApplicationVersionCompatibility(int appId, int oldVersionId, int newVersionId);
+    Task<MessageResult> DowngradeApplicationVersionCompatibility(int appId, int oldVersionId, int newVersionId);
+    Task<MessageResult<IList<ViewChangelog>>> LoadLastChangelogs(int appId, int versionId);
 }

@@ -11,7 +11,7 @@ public static class Mappers
             Id = app.Id,
             Name = app.Name,
             Description = app.Description,
-            Versions = app.Versions.ConvertAll(Copys.Copy)
+            Versions = app.Versions.ConvertAll(Copies.Copy)
         };
     }
 

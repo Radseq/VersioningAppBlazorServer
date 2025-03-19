@@ -36,13 +36,13 @@
     private int NewMinor { get; set; } = 0;
     private int NewPatch { get; set; } = 0;
 
-    protected override void OnInitialized()
+    protected override void OnParametersSet()
     {
+        base.OnParametersSet();
         Major = MajorMin;
         Minor = MinorMin;
         Patch = PatchMin;
 
-        base.OnInitialized();
     }
 
     private void HandleMajorVersionChange()

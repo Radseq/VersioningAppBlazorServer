@@ -30,12 +30,16 @@ public partial class ErrorList
     public const string _302 = "302 Failed to find application version (id)";
     public const string _303 = "303 Failed to delete application version";
     public const string _304 = "304 Failed to retrieve all application versions";
+    public const string _305 = "305 Failed to download all changelogs for the given version.";
 
     // 400 application version compatibilities
     public const string _401 = "401 Failed to add a compatible version to the specified version";
     public const string _402 = "402 Failed to remove compatibility between two versions";
     public const string _403 = "403 Failed to find compatibility between two versions";
     public const string _404 = "404 Failed to find compatibility for the specified application version";
+    public const string _405 = "405 Failed to find the old compatibility version.";
+    public const string _406 = "406 Failed to find the new compatibility version";
+    public const string _407 = "407 Failed to update the old compatibility version to the new one.";
 }
 
 public partial class ErrorList : IErrorList

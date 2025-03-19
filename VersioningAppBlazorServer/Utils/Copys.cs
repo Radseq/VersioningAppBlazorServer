@@ -2,7 +2,7 @@
 
 namespace VersioningAppBlazorServer.Utils;
 
-public static class Copys
+public static class Copies
 {
     public static ApplicationPicked Copy(ApplicationDTO app, AppVersionDTO appVersion)
     {

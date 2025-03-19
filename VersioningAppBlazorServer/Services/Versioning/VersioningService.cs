@@ -382,4 +382,93 @@ public class VersioningService : IVersioningService
             return MessageResult<List<KeyValuePair<int, string>>>.FailureErrorNumberExtract(ErrorList._304);
         }
     }
+
+    public async Task<MessageResult> UpgradeApplicationVersionCompatibility(int appId, int oldVersionId, int newVersionId)
+    {
+        try
+        {
+            var applicationVersionOld = await repoAppVersion.FirstOrDefaultAsync(x => x.ApplicationId == appId && x.Id == oldVersionId);
+            if (applicationVersionOld == null)
+                return MessageResult.FailureErrorNumberExtract(ErrorList._405);
+
+            var applicationVersionNew = await repoAppVersion.GetByIdAsync(newVersionId);
+            if (applicationVersionNew == null)
+                return MessageResult.FailureErrorNumberExtract(ErrorList._406);
+
+            var oldAppVersionCompatibility = applicationVersionOld.CompatibilityTargetVersions
+                .FirstOrDefault(x => x.TargetVersionId == oldVersionId);
+            if (oldAppVersionCompatibility != null)
+            {
+                oldAppVersionCompatibility.TargetVersionId = newVersionId;
+                repoAppCompatibility.Modify(oldAppVersionCompatibility);
+            }
+
+            await databaseTransactionOperation.SaveAsync();
+
+            return MessageResult.Success();
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Can't Upgrade application id = {appId}, compatibility version id = {oldVersionId}" +
+                " to new version id = {newVersionId}", appId, oldVersionId, newVersionId);
+            return MessageResult.FailureErrorNumberExtract(ErrorList._407);
+        }
+    }
+
+    public async Task<MessageResult> DowngradeApplicationVersionCompatibility(int appId, int oldVersionId, int newVersionId)
+    {
+        try
+        {
+            var applicationVersionOld = await repoAppVersion.FirstOrDefaultAsync(x => x.ApplicationId == appId && x.Id == oldVersionId);
+            if (applicationVersionOld == null)
+                return MessageResult.FailureErrorNumberExtract(ErrorList._405);
+
+            var applicationVersionNew = await repoAppVersion.FirstOrDefaultAsync(x => x.ApplicationId == appId && x.Id == newVersionId);
+            if (applicationVersionNew == null)
+                return MessageResult.FailureErrorNumberExtract(ErrorList._406);
+
+            var oldAppVersionCompatibility = applicationVersionOld.CompatibilitySourceVersions.FirstOrDefault(x => x.SourceVersionId == oldVersionId);
+            if (oldAppVersionCompatibility != null)
+            {
+                oldAppVersionCompatibility.SourceVersionId = oldVersionId;
+                repoAppCompatibility.Modify(oldAppVersionCompatibility);
+            }
+
+            await databaseTransactionOperation.SaveAsync();
+
+            return MessageResult.Success();
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Can't Upgrade application id = {appId}, compatibility version id = {oldVersionId}" +
+                " to new version id = {newVersionId}", appId, oldVersionId, newVersionId);
+            return MessageResult.FailureErrorNumberExtract(ErrorList._407);
+        }
+    }
+
+    public async Task<MessageResult<IList<ViewChangelog>>> LoadLastChangelogs(int appId, int versionId)
+    {
+        try
+        {
+            var lastVersions = await repoAppVersion.GetLastVersionsUntil(appId, versionId, 10);
+
+            var result = new List<ViewChangelog>();
+
+            foreach (var item in lastVersions)
+            {
+                result.Add(new ViewChangelog()
+                {
+                    ChangelogText = item.Description,
+                    Version = $"{item.Major}.{item.Minor}.{item.Patch}"
+                });
+            }
+
+            return MessageResult<IList<ViewChangelog>>.Success(result);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Can't get last changelogs app id = {appId}, up to verion Id = {versionId}", appId, versionId);
+            return MessageResult<IList<ViewChangelog>>.FailureErrorNumberExtract(ErrorList._305);
+        }
+    }
 }
