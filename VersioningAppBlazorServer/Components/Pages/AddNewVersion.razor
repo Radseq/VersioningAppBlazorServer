@@ -32,23 +32,15 @@
                                    Style="width: 100%; max-width: 200px; height: 100px"
                                    InputAttributes="@(new Dictionary<string,object>(){{ "aria-label", "select company" }})" />
                 </RadzenRow>
+            }
 
-                <VersioningAppBlazorServer.Components.VersioningComp.VersionNumeric MajorMin="selectedApp.Versions.Max(x=>x.Major)"
-                                                                                    MinorMin="selectedApp.Versions.Max(x=>x.Minor)"
-                                                                                    PatchMin="selectedApp.Versions.Max(x=>x.Patch) + 1"
-                                                                                    OnNumericMajorSet="@HandleMajorVersionChange"
-                                                                                    OnNumericMinorSet="@HandleMinorVersionChange"
-                                                                                    OnNumericPatchSet="@HandlePatchVersionChange" />
-            }
-            else
-            {
-                <VersioningAppBlazorServer.Components.VersioningComp.VersionNumeric MajorMin="1"
-                                                                                    MinorMin="0"
-                                                                                    PatchMin="0"
-                                                                                    OnNumericMajorSet="@HandleMajorVersionChange"
-                                                                                    OnNumericMinorSet="@HandleMinorVersionChange"
-                                                                                    OnNumericPatchSet="@HandlePatchVersionChange" />
-            }
+            <VersioningAppBlazorServer.Components.VersioningComp.VersionNumeric MajorMin="MinMajor"
+                                                                                MinorMin="MinMinor"
+                                                                                PatchMin="MinPatch"
+                                                                                OnNumericMajorSet="@HandleMajorVersionChange"
+                                                                                OnNumericMinorSet="@HandleMinorVersionChange"
+                                                                                OnNumericPatchSet="@HandlePatchVersionChange"
+                                                                                @key="@NewAppVersion.AppId" />
 
             <RadzenRow>
                 <RadzenColumn Size="12" SizeMD="12" SizeLG="5">
@@ -90,6 +82,10 @@
     public IList<ApplicationDTO> ApplicationsToPickUp { get; set; } = [];
 
     public IList<ApplicationPicked> ApplicationsPicked { get; set; } = [];
+
+    private int MinMajor { get; set; } = 1;
+    private int MinMinor { get; set; } = 0;
+    private int MinPatch { get; set; } = 0;
 
     private void OnSelectAppToPickUp(ApplicationDTO app, int versionId)
     {
@@ -135,19 +131,18 @@
                 .ToList().ConvertAll(Copies.Copy);
             SortApplicationsToPickUp();
 
-            NewAppVersion.AppId = selectedApp.Id;
-            if (selectedApp.Versions.Count > 0)
-            {
-                NewAppVersion.Major = selectedApp.Versions.Max(x => x.Major);
-                NewAppVersion.Minor = selectedApp.Versions.Max(x => x.Minor);
-                NewAppVersion.Patch = selectedApp.Versions.Max(x => x.Patch) + 1;
-            }
-            else
-            {
-                NewAppVersion.Major = 1;
-                NewAppVersion.Minor = 0;
-                NewAppVersion.Patch = 0;
-            }
+            NewAppVersion = new AppVersionDTO()
+                {
+                    AppId = selectedApp.Id,
+                    Major = selectedApp?.Versions.FirstOrDefault()?.Major ?? 1,
+                    Minor = selectedApp?.Versions.FirstOrDefault()?.Minor ?? 0,
+                    Patch = selectedApp?.Versions.FirstOrDefault()?.Patch + 1 ?? 0
+                };
+
+            MinMajor = NewAppVersion.Major;
+            MinMinor = NewAppVersion.Minor;
+            MinPatch = NewAppVersion.Patch;
+
             StateHasChanged();
         }
     }
@@ -231,6 +226,13 @@
             Applications = apps.Value ?? [];
         else
             ErrorNotify(apps.ErrorData?.Description);
+
+        NewAppVersion = new AppVersionDTO()
+            {
+                Major = 1,
+                Minor = 0,
+                Patch = 0
+            };
 
         await base.OnInitializedAsync();
     }
