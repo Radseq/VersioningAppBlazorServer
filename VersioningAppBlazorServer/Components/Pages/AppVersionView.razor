@@ -107,7 +107,7 @@
         }
 
         await dialogService.OpenSideAsync<VersioningComp.ShowLastChangelogs>("Last Changelogs",
-            new Dictionary<string, object>() { { "ChangeLogs", changelogs } },
+            new Dictionary<string, object>() { { "ChangeLogs", changelogs.Value ?? [] } },
             options: new SideDialogOptions { CloseDialogOnOverlayClick = true, Position = DialogPosition.Right, ShowMask = true });
     }
 

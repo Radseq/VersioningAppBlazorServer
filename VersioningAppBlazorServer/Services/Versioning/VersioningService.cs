@@ -112,6 +112,11 @@ public class VersioningService : IVersioningService
             // inherit
             foreach (var item in getCompatibilitiesPreviousVersion)
             {
+                var inheritCompatibilityExistsWhileAddingNewVersion = appVersion.Compatibilities
+                    .Any(x => x.CompatibleWithVersionId == item.TargetVersionId);
+                if (inheritCompatibilityExistsWhileAddingNewVersion)
+                    continue;
+
                 var newCompatibility = new AppCompatibility()
                 {
                     SourceVersionId = newAppVersion.Id,

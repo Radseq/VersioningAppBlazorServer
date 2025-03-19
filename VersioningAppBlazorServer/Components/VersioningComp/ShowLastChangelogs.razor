@@ -43,7 +43,7 @@
     private List<string> SplitByKeywords(string input)
     {
         // Define the keywords to split by
-        var keywords = new[] { "#feat", "#refactor", "#fix", "#build" };
+        var keywords = new[] { "#feat", "#refactor", "#fix", "#build" }; // todo move to appsettings???
 
         // Use regex to split the input string by keywords
         var pattern = $"({string.Join("|", keywords.Select(Regex.Escape))})";
