@@ -34,6 +34,7 @@ public static class Copies
             Major = appVersion.Major,
             Minor = appVersion.Minor,
             Patch = appVersion.Patch,
+            IsProduction = appVersion.IsProduction,
             Description = appVersion.Description,
             Compatibilities = appVersion.Compatibilities.ConvertAll(Copy)
         };

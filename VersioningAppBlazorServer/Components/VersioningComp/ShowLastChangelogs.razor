@@ -43,11 +43,11 @@
     private List<string> SplitByKeywords(string input)
     {
         // Define the keywords to split by
-        var keywords = new[] { "#feat", "#refactor", "#fix", "#build" }; // todo move to appsettings???
+        var keywords = new[] { "#feat", "#refactor", "#fix", "#build", "merge" };
 
         // Use regex to split the input string by keywords
         var pattern = $"({string.Join("|", keywords.Select(Regex.Escape))})";
-        var parts = Regex.Split(input, pattern)
+        var parts = Regex.Split(input.ToLower(), pattern.ToLower())
                          .Where(x => !string.IsNullOrWhiteSpace(x))
                          .ToList();
 

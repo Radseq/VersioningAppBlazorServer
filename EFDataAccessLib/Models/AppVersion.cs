@@ -23,6 +23,9 @@ public class AppVersion
     [MaxLength(2000)]
     public string Description { get; set; } = null!;
 
+    [Required]
+    public bool IsProduction { get; set; } = false;
+
     public int ApplicationId { get; set; }
     public Application Application { get; set; } = null!;
 

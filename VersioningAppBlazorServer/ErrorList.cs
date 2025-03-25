@@ -31,6 +31,7 @@ public partial class ErrorList
     public const string _303 = "303 Failed to delete application version";
     public const string _304 = "304 Failed to retrieve all application versions";
     public const string _305 = "305 Failed to download all changelogs for the given version.";
+    public const string _306 = "306 Failed to set production flag";
 
     // 400 application version compatibilities
     public const string _401 = "401 Failed to add a compatible version to the specified version";

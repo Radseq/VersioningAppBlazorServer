@@ -1,0 +1,69 @@
+﻿@if (Applications.Count > 0)
+{
+    <AppsToPick ApplicationsToPickUp="@ApplicationsToPickUp"
+                OnSelectAppToPickUp="(args)=>OnSelectAppToPickUp(args.Application, args.VersionId)" />
+    <AppsPicked ApplicationsPicked="@ApplicationsPicked"
+                OnDeleteAppPicked="@OnDeleteAppPicked" />
+}
+
+@code {
+    [Parameter]
+    public IList<ApplicationDTO> Applications { get; set; } = [];
+
+    [Parameter]
+    public Action<int>? OnVersionCompatibilityAdd { get; set; }
+
+    [Parameter]
+    public Action<int>? OnVersionCompatibilityRemove { get; set; }
+
+    private IList<ApplicationDTO> ApplicationsToPickUp { get; set; } = [];
+    private IList<ApplicationPicked> ApplicationsPicked { get; set; } = [];
+
+    protected override void OnParametersSet()
+    {
+        if (Applications.Count > 0 && ApplicationsPicked.Count == 0)
+        {
+            ApplicationsToPickUp = Applications.Where(x => x.Versions.Count > 0).ToList().ConvertAll(Copies.Copy);
+            SortApplicationsToPickUp();
+        }
+        base.OnParametersSet();
+    }
+
+    private void OnSelectAppToPickUp(ApplicationDTO app, int versionId)
+    {
+        ApplicationsToPickUp.Remove(app);
+
+        var appVersion = app.Versions.FirstOrDefault(x => x.Id == versionId);
+        if (appVersion != null)
+            ApplicationsPicked.Add(Copies.Copy(app, appVersion));
+
+        OnVersionCompatibilityAdd?.Invoke(versionId);
+        StateHasChanged();
+    }
+
+    private void OnDeleteAppPicked(ApplicationPicked appPicked)
+    {
+        ApplicationsPicked.Remove(appPicked);
+
+        var app = Applications.FirstOrDefault(x => x.Id == appPicked.Id);
+        if (app != null)
+            ApplicationsToPickUp.Add(Copies.Copy(app));
+
+        SortApplicationsToPickUp();
+
+        OnVersionCompatibilityRemove?.Invoke(appPicked.Version.Id);
+        StateHasChanged();
+    }
+
+
+    private void SortApplicationsToPickUp()
+    {
+        foreach (var item in ApplicationsToPickUp)
+        {
+            item.Versions = item.Versions
+                .OrderByDescending(x => x.Major)
+                .ThenByDescending(g => g.Minor)
+                .ThenByDescending(r => r.Patch).ToList();
+        }
+    }
+}

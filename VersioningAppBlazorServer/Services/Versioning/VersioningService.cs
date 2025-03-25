@@ -28,8 +28,7 @@ public class VersioningService : IVersioningService
         databaseTransactionOperation = _databaseTransactionOperation;
     }
 
-    public async Task<MessageResult<KeyValuePair<int, int>>> AddNewApplication(ApplicationDTO application, AppVersionDTO appVersion,
-        List<AppCompatibilityDTO> compatibilities)
+    public async Task<MessageResult<KeyValuePair<int, int>>> AddNewApplication(ApplicationDTO application)
     {
         try
         {
@@ -42,7 +41,7 @@ public class VersioningService : IVersioningService
 
             await databaseTransactionOperation.StartAsync();
 
-            var newApplication = await repoApplication.AddOneAsync(new EFDataAccessLib.Models.Application()
+            var newApplication = await repoApplication.AddOneAsync(new Application()
             {
                 Name = application.Name,
                 Description = application.Description
@@ -50,25 +49,34 @@ public class VersioningService : IVersioningService
 
             await databaseTransactionOperation.SaveAsync();
 
-            var newAppVersion = Mappers.MapToDB(application.Versions[0]);
-            newAppVersion.CompatibilitySourceVersions.Clear();
-            newAppVersion.CompatibilityTargetVersions.Clear();
-            newAppVersion.ApplicationId = newApplication.Id;
+            var versionId = 0;
 
-            newAppVersion = await repoAppVersion.AddOneAsync(newAppVersion);
+            if (application.Versions.Count > 0)
+            {
+                var newAppVersion = Mappers.MapToDB(application.Versions[0]);
+                newAppVersion.CompatibilitySourceVersions.Clear();
+                newAppVersion.CompatibilityTargetVersions.Clear();
+                newAppVersion.ApplicationId = newApplication.Id;
+
+                newAppVersion = await repoAppVersion.AddOneAsync(newAppVersion);
+
+                await databaseTransactionOperation.SaveAsync();
+
+                versionId = newAppVersion.Id;
+
+                foreach (var item in application.Versions[0].Compatibilities)
+                {
+                    var compAdd = Mappers.MapToDB(item);
+                    compAdd.SourceVersionId = newAppVersion.Id;
+                    var comp = await repoAppCompatibility.AddOneAsync(compAdd);
+                }
+            }
 
             await databaseTransactionOperation.SaveAsync();
 
-            foreach (var item in application.Versions[0].Compatibilities)
-            {
-                var compAdd = Mappers.MapToDB(item);
-                compAdd.SourceVersionId = newAppVersion.Id;
-                var comp = await repoAppCompatibility.AddOneAsync(compAdd);
-            }
-
             await databaseTransactionOperation.EndAsync();
 
-            return MessageResult<KeyValuePair<int, int>>.Success(new KeyValuePair<int, int>(newApplication.Id, newApplication.AppVersions.ElementAt(0).Id));
+            return MessageResult<KeyValuePair<int, int>>.Success(new KeyValuePair<int, int>(newApplication.Id, versionId));
         }
         catch (Exception ex)
         {
@@ -79,7 +87,7 @@ public class VersioningService : IVersioningService
         }
     }
 
-    public async Task<MessageResult<int>> AddNewVersion(AppVersionDTO appVersion, List<AppCompatibilityDTO> compatibilities)
+    public async Task<MessageResult<int>> AddNewVersion(AppVersionDTO appVersion)
     {
         try
         {
@@ -88,6 +96,22 @@ public class VersioningService : IVersioningService
                 return MessageResult<int>.FailureErrorNumberExtract(ErrorList._202);
 
             await databaseTransactionOperation.StartAsync();
+
+            // unmark previous production version
+            if (appVersion.IsProduction)
+            {
+                var previousVersions = await repoAppVersion.GetWhereAsync(x => x.ApplicationId == appVersion.AppId);
+                foreach (var item in previousVersions)
+                {
+                    if (item.IsProduction == true)
+                    {
+                        item.IsProduction = false;
+                        repoAppVersion.Modify(item);
+                    }
+                    else continue;
+                }
+            }
+
 
             var previousVersionId = await repoAppVersion.MaxId(appVersion.AppId);
 
@@ -110,19 +134,22 @@ public class VersioningService : IVersioningService
             }
 
             // inherit
-            foreach (var item in getCompatibilitiesPreviousVersion)
+            if (appVersion.DoInheritCompatibilityOfPreviousVersions)
             {
-                var inheritCompatibilityExistsWhileAddingNewVersion = appVersion.Compatibilities
-                    .Any(x => x.CompatibleWithVersionId == item.TargetVersionId);
-                if (inheritCompatibilityExistsWhileAddingNewVersion)
-                    continue;
-
-                var newCompatibility = new AppCompatibility()
+                foreach (var item in getCompatibilitiesPreviousVersion)
                 {
-                    SourceVersionId = newAppVersion.Id,
-                    TargetVersionId = item.TargetVersionId
-                };
-                var comp = await repoAppCompatibility.AddOneAsync(newCompatibility);
+                    var inheritCompatibilityExistsWhileAddingNewVersion = appVersion.Compatibilities
+                        .Any(x => x.CompatibleWithVersionId == item.TargetVersionId);
+                    if (inheritCompatibilityExistsWhileAddingNewVersion)
+                        continue;
+
+                    var newCompatibility = new AppCompatibility()
+                    {
+                        SourceVersionId = newAppVersion.Id,
+                        TargetVersionId = item.TargetVersionId
+                    };
+                    var comp = await repoAppCompatibility.AddOneAsync(newCompatibility);
+                }
             }
 
             await databaseTransactionOperation.SaveAsync();
@@ -197,12 +224,13 @@ public class VersioningService : IVersioningService
             if (application == null)
                 return MessageResult.FailureErrorNumberExtract(ErrorList._202);
 
-            foreach (var item in application.AppVersions)
+            for (int i = 0; i < application.AppVersions.Count; i++)
             {
-                var deleteResult = await DeleteApplicationVersion(item.Id);
+                var deleteResult = await DeleteApplicationVersion(application.AppVersions[i].Id);
                 if (deleteResult.HasFailed)
                     return MessageResult.Failure(deleteResult.ErrorData!);
             }
+
             repoApplication.Remove(application);
 
             await databaseTransactionOperation.SaveAsync();
@@ -474,6 +502,42 @@ public class VersioningService : IVersioningService
         {
             logger.LogError(ex, "Can't get last changelogs app id = {appId}, up to verion Id = {versionId}", appId, versionId);
             return MessageResult<IList<ViewChangelog>>.FailureErrorNumberExtract(ErrorList._305);
+        }
+    }
+
+    public async Task<MessageResult> SetVersionToProduction(int appId, int versionId, bool isProduction)
+    {
+        try
+        {
+            var result = false;
+            var previousVersions = await repoAppVersion.GetWhereAsync(x => x.ApplicationId == appId);
+            foreach (var item in previousVersions)
+            {
+                if (item.Id == versionId)
+                {
+                    item.IsProduction = isProduction;
+                    repoAppVersion.Modify(item);
+                    result = true;
+                    continue;
+                }
+                if (isProduction == true)
+                {
+                    result = true;
+                    item.IsProduction = false;
+                    repoAppVersion.Modify(item);
+                }
+            }
+            if (!result)
+                return MessageResult.FailureErrorNumberExtract(ErrorList._306);
+
+            await databaseTransactionOperation.SaveAsync();
+
+            return MessageResult.Success();
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Can't mark version to production one, version Id = {versionId}, api id = {apiId}", versionId, appId);
+            return MessageResult.FailureErrorNumberExtract(ErrorList._306);
         }
     }
 }

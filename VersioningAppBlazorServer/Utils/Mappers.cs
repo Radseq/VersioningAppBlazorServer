@@ -33,6 +33,7 @@ public static class Mappers
             Patch = appVersion.Patch,
             Description = appVersion.Description,
             ApplicationId = appVersion.AppId,
+            IsProduction = appVersion.IsProduction,
             CompatibilityTargetVersions = appVersion.Compatibilities.ToList().ConvertAll(MapToDB)
         };
     }
@@ -46,6 +47,7 @@ public static class Mappers
             Minor = appVersion.Minor,
             Patch = appVersion.Patch,
             Description = appVersion.Description,
+            IsProduction = appVersion.IsProduction,
             Compatibilities = appVersion.CompatibilitySourceVersions.ToList().ConvertAll(MapToDTO)
         };
     }

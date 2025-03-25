@@ -1,0 +1,92 @@
+﻿<RadzenRow>
+    <RadzenCheckBox @bind-Value=@NewAppVersion.IsProduction Name="IsProductionVersionCheckBox" TValue="bool" />
+    <RadzenLabel Text="Is production version(old versions will set to false)"
+                 Component="IsProductionVersionCheckBox" class="rz-ms-2" />
+</RadzenRow>
+
+<RadzenRow>
+    <RadzenCheckBox @bind-Value=@NewAppVersion.DoInheritCompatibilityOfPreviousVersions Name="DoInheritCheckBox"
+                    TValue="bool" />
+    <RadzenLabel Text="Do inherit compatibility of previous versions" Component="DoInheritCheckBox" class="rz-ms-2" />
+</RadzenRow>
+
+<VersioningAppBlazorServer.Components.VersioningComp.VersionNumeric MajorMin="MinMajor"
+                                                                    MinorMin="MinMinor"
+                                                                    PatchMin="MinPatch"
+                                                                    OnNumericMajorSet="@HandleMajorVersionChange"
+                                                                    OnNumericMinorSet="@HandleMinorVersionChange"
+                                                                    OnNumericPatchSet="@HandlePatchVersionChange"
+                                                                    @key="@NewAppVersion.AppId" />
+
+<RadzenRow>
+    <RadzenColumn Size="12" SizeMD="12" SizeLG="5">
+        <RadzenCard>
+            <RadzenText TextStyle="TextStyle.Subtitle2" TagName="TagName.H3">Give changelog</RadzenText>
+            <RadzenTextArea @bind-Value=@NewAppVersion.Description
+                            @oninput="@(args => NewAppVersion.Description = $"{args.Value}")"
+                            MaxLength="@maxLength" Style="width: 100%" aria-label="changelog here" />
+            <span style="font-style: italic;">@($"{NewAppVersion.Description.Length}/{maxLength}")</span>
+        </RadzenCard>
+    </RadzenColumn>
+</RadzenRow>
+
+
+<VersioningAppBlazorServer.Components.VersioningComp.NewVersionCompatibilities Applications="Applications"
+                                                                               OnVersionCompatibilityAdd="OnVersionCompatibilityAdd"
+                                                                               OnVersionCompatibilityRemove="OnVersionCompatibilityRemove" />
+
+@code {
+    [Parameter]
+    public IList<ApplicationDTO> Applications { get; set; } = [];
+
+    [Parameter]
+    public int MinMajor { get; set; } = 1;
+    [Parameter]
+    public int MinMinor { get; set; } = 0;
+    [Parameter]
+    public int MinPatch { get; set; } = 0;
+
+    private const int maxLength = 200;
+
+    private AppVersionDTO NewAppVersion { get; set; } = new();
+
+    public AppVersionDTO GetVersionDTO()
+    {
+        return NewAppVersion;
+    }
+
+    protected override void OnParametersSet()
+    {
+        NewAppVersion.Major = MinMajor;
+        NewAppVersion.Minor = MinMinor;
+        NewAppVersion.Patch = MinPatch;
+        base.OnParametersSet();
+    }
+
+    private void OnVersionCompatibilityAdd(int versionId)
+    {
+        NewAppVersion.Compatibilities.Add(new AppCompatibilityDTO() { CompatibleWithVersionId = versionId });
+    }
+
+    private void OnVersionCompatibilityRemove(int versionId)
+    {
+        var existedComp = NewAppVersion.Compatibilities.FirstOrDefault(x => x.CompatibleWithVersionId == versionId);
+        if (existedComp != null)
+            NewAppVersion.Compatibilities.Remove(existedComp);
+    }
+
+    private void HandleMajorVersionChange(int major)
+    {
+        NewAppVersion.Major = major;
+    }
+
+    private void HandleMinorVersionChange(int minor)
+    {
+        NewAppVersion.Minor = minor;
+    }
+
+    private void HandlePatchVersionChange(int patch)
+    {
+        NewAppVersion.Patch = patch;
+    }
+}

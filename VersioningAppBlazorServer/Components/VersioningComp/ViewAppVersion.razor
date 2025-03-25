@@ -9,10 +9,10 @@
                     FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
                     LogicalFilterOperator="LogicalFilterOperator.Or"
                     TItem="ApplicationView"
-                    AllowSorting="true">
+                    AllowSorting="true" ColumnWidth="100px">
         <Columns>
-            <RadzenDataGridColumn Property="@nameof(ApplicationView.Name)" Title="Name" />
-            <RadzenDataGridColumn Title="Version" Width="150px">
+            <RadzenDataGridColumn Property="@nameof(ApplicationView.Name)" Title="Name" MinWidth="120px" />
+            <RadzenDataGridColumn Title="Version" MinWidth="120px">
                 <Template Context="app">
                     @if (app.SelectedAppVersion != null)
                     {
@@ -24,7 +24,7 @@
                     }
                 </Template>
             </RadzenDataGridColumn>
-            <RadzenDataGridColumn Title="All Versions">
+            <RadzenDataGridColumn Title="All Versions" MinWidth="300px">
                 <Template Context="app">
                     @if (app.Versions != null && app.Versions.Any())
                     {
@@ -40,7 +40,7 @@
                     }
                 </Template>
             </RadzenDataGridColumn>
-            <RadzenDataGridColumn Title="Changelog">
+            <RadzenDataGridColumn Title="Changelog" MinWidth="200px">
                 <Template Context="app">
                     @if (app.SelectedAppVersion != null)
                     {
@@ -52,7 +52,7 @@
                     }
                 </Template>
             </RadzenDataGridColumn>
-            <RadzenDataGridColumn Title="Last 10 changelogs" Width="150px">
+            <RadzenDataGridColumn Title="Last 10 changelogs" MinWidth="200px">
                 <Template Context="app">
                     <RadzenButton Icon="list" ButtonStyle="ButtonStyle.Primary" Click="@(args => OnShowLastChangelogs(app))" />
                 </Template>

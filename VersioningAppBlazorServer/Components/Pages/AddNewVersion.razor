@@ -19,97 +19,53 @@
                             TextProperty="@nameof(DropDownItem.Value)"
                             ValueProperty="@nameof(DropDownItem.Id)" Style="width: 100%; max-width: 400px;" Name="DropDownSelectApp" />
 
-
-            @if (selectedApp != null && selectedApp.Versions.Count > 0)
+            @if (selectedAppIdDummy != null)
             {
-                <RadzenRow class="rz-py-2">
-                    <RadzenLabel Text="List of Existing Versions" />
-                    <RadzenListBox Disabled
-                                   Data="selectedApp.Versions"
-                                   TValue="int"
-                                   TextProperty="@nameof(AppVersionDTO.Version)"
-                                   ValueProperty="@nameof(AppVersionDTO.Id)"
-                                   Style="width: 100%; max-width: 200px; height: 100px"
-                                   InputAttributes="@(new Dictionary<string,object>(){{ "aria-label", "select company" }})" />
-                </RadzenRow>
-            }
+                @if (selectedApp != null && selectedApp.Versions.Count > 0)
+                {
+                    <RadzenRow class="rz-py-2">
+                        <RadzenLabel Text="List of Existing Versions" />
+                        <RadzenListBox Disabled
+                                       Data="selectedApp.Versions"
+                                       TValue="int"
+                                       TextProperty="@nameof(AppVersionDTO.Version)"
+                                       ValueProperty="@nameof(AppVersionDTO.Id)"
+                                       Style="width: 100%; max-width: 200px; height: 100px"
+                                       InputAttributes="@(new Dictionary<string,object>(){{ "aria-label", "select company" }})" />
+                    </RadzenRow>
+                }
 
-            <VersioningAppBlazorServer.Components.VersioningComp.VersionNumeric MajorMin="MinMajor"
-                                                                                MinorMin="MinMinor"
-                                                                                PatchMin="MinPatch"
-                                                                                OnNumericMajorSet="@HandleMajorVersionChange"
-                                                                                OnNumericMinorSet="@HandleMinorVersionChange"
-                                                                                OnNumericPatchSet="@HandlePatchVersionChange"
-                                                                                @key="@NewAppVersion.AppId" />
+                <VersioningAppBlazorServer.Components.VersioningComp.NewVersion Applications="Applications"
+                                                                                MinMajor="MinMajor"
+                                                                                MinMinor="MinMinor"
+                                                                                MinPatch="MinPatch"
+                                                                                @key=selectedApp?.Id
+                                                                                @ref=NewVersionComp />
 
-            <RadzenRow>
-                <RadzenColumn Size="12" SizeMD="12" SizeLG="5">
-                    <RadzenCard>
-                        <RadzenText TextStyle="TextStyle.Subtitle2" TagName="TagName.H3">Give changelog</RadzenText>
-                        <RadzenTextArea @bind-Value=@NewAppVersion.Description @oninput="@(args => NewAppVersion.Description = $"{args.Value}")" MaxLength="@maxLength" Style="width: 100%" aria-label="changelog here" />
-                        <span style="font-style: italic;">@($"{NewAppVersion.Description.Length}/{maxLength}")</span>
-                    </RadzenCard>
-                </RadzenColumn>
-            </RadzenRow>
-
-            <VersioningAppBlazorServer.Components.VersioningComp.AppsToPick ApplicationsToPickUp="@ApplicationsToPickUp"
-                                                                            OnSelectAppToPickUp="(args)=>OnSelectAppToPickUp(args.Application, args.VersionId)" />
-            <VersioningAppBlazorServer.Components.VersioningComp.AppsPicked ApplicationsPicked="@ApplicationsPicked"
-                                                                            OnDeleteAppPicked="@OnDeleteAppPicked" />
-
-            @if (selectedApp != null)
-            {
-                <RadzenColumn>
-                    <RadzenButton ButtonStyle="ButtonStyle.Primary" Text="Add" Variant="Variant.Flat" Click="@AddButtonClick" />
-                </RadzenColumn>
+                @if (selectedApp != null)
+                {
+                    <RadzenColumn>
+                        <RadzenButton ButtonStyle="ButtonStyle.Primary" Text="Add" Variant="Variant.Flat" Click="@AddButtonClick" />
+                    </RadzenColumn>
+                }
             }
         </RadzenStack>
     </Body>
 </PageBody>
 
 @code {
-    private List<DropDownItem> ApplicationNames = [];
-    private IList<ApplicationDTO> Applications { get; set; } = [];
+    VersioningAppBlazorServer.Components.VersioningComp.NewVersion? NewVersionComp { get; set; }
 
+    private List<DropDownItem> ApplicationNames = [];
+    private List<ApplicationDTO> Applications { get; set; } = [];
+    //private List<ApplicationDTO> ApplicationsLoaded { get; set; } = [];
 
     private ApplicationDTO? selectedApp;
     private int? selectedAppIdDummy;
 
-    private const int maxLength = 2000;
-
-    private AppVersionDTO NewAppVersion { get; set; } = new();
-
-    public IList<ApplicationDTO> ApplicationsToPickUp { get; set; } = [];
-
-    public IList<ApplicationPicked> ApplicationsPicked { get; set; } = [];
-
     private int MinMajor { get; set; } = 1;
     private int MinMinor { get; set; } = 0;
     private int MinPatch { get; set; } = 0;
-
-    private void OnSelectAppToPickUp(ApplicationDTO app, int versionId)
-    {
-        ApplicationsToPickUp.Remove(app);
-
-        var appVersion = app.Versions.FirstOrDefault(x => x.Id == versionId);
-        if (appVersion != null)
-            ApplicationsPicked.Add(Copies.Copy(app, appVersion));
-
-        StateHasChanged();
-    }
-
-    private void OnDeleteAppPicked(ApplicationPicked appPicked)
-    {
-        ApplicationsPicked.Remove(appPicked);
-
-        var app = Applications.FirstOrDefault(x => x.Id == appPicked.Id);
-        if (app != null)
-            ApplicationsToPickUp.Add(Copies.Copy(app));
-
-        SortApplicationsToPickUp();
-
-        StateHasChanged();
-    }
 
     private async Task OnChangeApp(object value)
     {
@@ -127,21 +83,18 @@
             selectedApp!.Versions = selectedApp.Versions.OrderByDescending(x => x.Major)
                 .ThenByDescending(g => g.Minor).ThenByDescending(r => r.Patch).ToList();
 
-            ApplicationsToPickUp = Applications.Where(x => x.Id != selectedApp.Id && x.Versions.Count > 0)
+            var apps = await VersioningService.GetAllApplications();
+            if (apps.IsSuccess)
+                Applications = apps.Value?.ToList() ?? [];
+            else
+                ErrorNotify(apps.ErrorData?.Description);
+
+            Applications = Applications.Where(x => x.Id != selectedApp.Id && x.Versions.Count > 0)
                 .ToList().ConvertAll(Copies.Copy);
-            SortApplicationsToPickUp();
 
-            NewAppVersion = new AppVersionDTO()
-                {
-                    AppId = selectedApp.Id,
-                    Major = selectedApp?.Versions.FirstOrDefault()?.Major ?? 1,
-                    Minor = selectedApp?.Versions.FirstOrDefault()?.Minor ?? 0,
-                    Patch = selectedApp?.Versions.FirstOrDefault()?.Patch + 1 ?? 0
-                };
-
-            MinMajor = NewAppVersion.Major;
-            MinMinor = NewAppVersion.Minor;
-            MinPatch = NewAppVersion.Patch;
+            MinMajor = selectedApp?.Versions.FirstOrDefault()?.Major ?? 1;
+            MinMinor = selectedApp?.Versions.FirstOrDefault()?.Minor ?? 0;
+            MinPatch = selectedApp?.Versions.FirstOrDefault()?.Patch + 1 ?? 0;
 
             StateHasChanged();
         }
@@ -151,27 +104,19 @@
     {
         try
         {
-            foreach (var item in ApplicationsPicked)
+            var NewAppVersion = NewVersionComp?.GetVersionDTO();
+            if (NewAppVersion != null && selectedApp != null)
             {
-                NewAppVersion.Compatibilities.Add(new AppCompatibilityDTO()
-                    {
-                        CompatibleWithVersionId = item.Version.Id,
-
-                    });
+                NewAppVersion.AppId = selectedApp.Id;
             }
-            ApplicationsToPickUp = Applications.Where(x => x.Id != selectedApp?.Id && x.Versions.Count > 0)
-                .ToList().ConvertAll(Copies.Copy);
-            SortApplicationsToPickUp();
 
-            ApplicationsPicked.Clear();
-
-            if (string.IsNullOrWhiteSpace(NewAppVersion.Description))
+            if (string.IsNullOrWhiteSpace(NewAppVersion?.Description))
             {
                 ErrorNotify("Include changelog");
                 return;
             }
 
-            var newVersionResult = await VersioningService.AddNewVersion(NewAppVersion, NewAppVersion.Compatibilities);
+            var newVersionResult = await VersioningService.AddNewVersion(NewAppVersion);
             if (newVersionResult.IsSuccess)
             {
                 Navigation.NavigateTo($"AppVersionView/{NewAppVersion.AppId}/{newVersionResult.Value}");
@@ -190,29 +135,6 @@
         }
     }
 
-    private void SortApplicationsToPickUp()
-    {
-        foreach (var item in ApplicationsToPickUp)
-        {
-            item.Versions = item.Versions.OrderByDescending(x => x.Major).ThenByDescending(g => g.Minor).ThenByDescending(r => r.Patch).ToList();
-        }
-    }
-
-    private void HandleMajorVersionChange(int major)
-    {
-        NewAppVersion.Major = major;
-    }
-
-    private void HandleMinorVersionChange(int minor)
-    {
-        NewAppVersion.Minor = minor;
-    }
-
-    private void HandlePatchVersionChange(int patch)
-    {
-        NewAppVersion.Patch = patch;
-    }
-
     protected override async Task OnInitializedAsync()
     {
         var allAppsNamesResult = await VersioningService.GetAllApplicationsNames();
@@ -220,19 +142,6 @@
             ApplicationNames = allAppsNamesResult.Value ?? [];
         else
             ErrorNotify(allAppsNamesResult.ErrorData?.Description);
-
-        var apps = await VersioningService.GetAllApplications();
-        if (apps.IsSuccess)
-            Applications = apps.Value ?? [];
-        else
-            ErrorNotify(apps.ErrorData?.Description);
-
-        NewAppVersion = new AppVersionDTO()
-            {
-                Major = 1,
-                Minor = 0,
-                Patch = 0
-            };
 
         await base.OnInitializedAsync();
     }

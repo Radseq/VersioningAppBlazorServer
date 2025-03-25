@@ -15,45 +15,51 @@
                 <h3>Add new application</h3>
                 <RadzenRow AlignItems="AlignItems.Normal"
                            JustifyContent="JustifyContent.Left">
-                    <RadzenCard>
-                        <RadzenStack Orientation="Orientation.Vertical"
-                                     JustifyContent="JustifyContent.Normal">
-                            <RadzenLabel Text="(Uppercase, min 3, max 30, allowed special chars space, _ )" />
-                            <RadzenFormField @onclick="() => FocusInputAddOrEdit(AppNameRadzenTextBox)"
-                                             Text="Name" Variant="Variant.Outlined" Class="rz-color-base-500">
-                                <RadzenTextBox @ref="AppNameRadzenTextBox" @bind-Value="NewApplicationToCreate!.Name" Name="AppName" />
-                            </RadzenFormField>
-                            <RadzenRequiredValidator Component="AppName" Text="Enter the name" Popup=false Style="" />
-                            <RadzenRegexValidator Component="AppName" Text="Enter a valid name" Pattern="@ValidationRegex.APP_NAME_REGEX" Popup=false Style="" />
-                        </RadzenStack>
-                    </RadzenCard>
-                    <RadzenCard>
-                        <RadzenStack Orientation="Orientation.Vertical"
-                                     JustifyContent="JustifyContent.Normal">
-                            <RadzenLabel Text="Short description of the application" />
-                            <RadzenFormField Text="Description" Variant="Variant.Outlined" Class="rz-color-base-500">
-                                <RadzenTextArea @bind-Value=@NewApplicationToCreate!.Description
-                                                @oninput="@(args => NewApplicationToCreate!.Description = $"{args.Value}")"
-                                                Name="AppDescription"
-                                                MaxLength="@maxLength" Style="width: 100%" aria-label="application note here" />
+                    <RadzenColumn Size="12" SizeMD="8" SizeLG="4">
+                        <RadzenCard>
+                            <RadzenStack Orientation="Orientation.Vertical"
+                                         JustifyContent="JustifyContent.Normal">
+                                <RadzenLabel Text="(Uppercase, min 3, max 30, allowed special chars space, _ )" />
+                                <RadzenFormField @onclick="() => FocusInputAddOrEdit(AppNameRadzenTextBox)"
+                                                 Text="Name" Variant="Variant.Outlined" Class="rz-color-base-500">
+                                    <RadzenTextBox @ref="AppNameRadzenTextBox" @bind-Value="NewApplicationToCreate!.Name" Name="AppName" />
+                                </RadzenFormField>
+                                <RadzenRequiredValidator Component="AppName" Text="Enter the name" Popup=false Style="" />
+                                <RadzenRegexValidator Component="AppName" Text="Enter a valid name" Pattern="@ValidationRegex.APP_NAME_REGEX" Popup=false Style="" />
+                            </RadzenStack>
+                        </RadzenCard>
+                    </RadzenColumn>
+                    <RadzenColumn Size="12" SizeLG="6" SizeXL="4">
+                        <RadzenCard>
+                            <RadzenStack Orientation="Orientation.Vertical"
+                                         JustifyContent="JustifyContent.Normal">
+                                <RadzenLabel Text="Short description of the application" />
+                                <RadzenFormField Text="Description" Variant="Variant.Outlined" Class="rz-color-base-500">
+                                    <RadzenTextArea @bind-Value=@NewApplicationToCreate!.Description
+                                                    @oninput="@(args => NewApplicationToCreate!.Description = $"{args.Value}")"
+                                                    Name="AppDescription"
+                                                    MaxLength="@maxLength" Style="width: 100%" aria-label="application note here" />
 
-                            </RadzenFormField>
-                            <span style="font-style: italic;">@($"{NewApplicationToCreate!.Description.Length}/{maxLength}")</span>
-                            <RadzenRequiredValidator Component="AppDescription" Text="Enter the description" Popup=false Style="" />
-                        </RadzenStack>
-                    </RadzenCard>
+                                </RadzenFormField>
+                                <span style="font-style: italic;">@($"{NewApplicationToCreate!.Description.Length}/{maxLength}")</span>
+                                <RadzenRequiredValidator Component="AppDescription" Text="Enter the description" Popup=false Style="" />
+                            </RadzenStack>
+                        </RadzenCard>
+                    </RadzenColumn>
                 </RadzenRow>
-                <VersioningAppBlazorServer.Components.VersioningComp.VersionNumeric MajorMin="1"
-                                                                                    MinorMin="0"
-                                                                                    PatchMin="0"
-                                                                                    OnNumericMajorSet="@HandleMajorVersionChange"
-                                                                                    OnNumericMinorSet="@HandleMinorVersionChange"
-                                                                                    OnNumericPatchSet="@HandlePatchVersionChange" />
 
-                <VersioningAppBlazorServer.Components.VersioningComp.AppsToPick ApplicationsToPickUp="@ApplicationsToPickUp"
-                                                                                OnSelectAppToPickUp="(args)=>OnSelectAppToPickUp(args.Application, args.VersionId)" />
-                <VersioningAppBlazorServer.Components.VersioningComp.AppsPicked ApplicationsPicked="@ApplicationsPicked"
-                                                                                OnDeleteAppPicked="@OnDeleteAppPicked" />
+                <RadzenRow>
+                    <RadzenCheckBox @bind-Value=@IncludeVersion Name="AddVersionCheckBox" TValue="bool" />
+                    <RadzenLabel Text="Add Version" Component="AddVersionCheckBox" class="rz-ms-2" />
+                </RadzenRow>
+                @if (IncludeVersion)
+                {
+                    <VersioningAppBlazorServer.Components.VersioningComp.NewVersion Applications="Applications"
+                                                                                    MinMajor="1"
+                                                                                    MinMinor="0"
+                                                                                    MinPatch="0"
+                                                                                    @ref=NewVersionComp />
+                }
 
                 <RadzenColumn>
                     <RadzenButton ButtonType="ButtonType.Submit" ButtonStyle="ButtonStyle.Primary">
@@ -66,68 +72,45 @@
 </PageBody>
 
 @code {
+    VersioningAppBlazorServer.Components.VersioningComp.NewVersion? NewVersionComp { get; set; }
+
     private IList<ApplicationDTO> Applications { get; set; } = [];
 
     private ApplicationDTO NewApplicationToCreate { get; set; } = new();
-
-    public IList<ApplicationDTO> ApplicationsToPickUp { get; set; } = [];
-
-    public IList<ApplicationPicked> ApplicationsPicked { get; set; } = [];
 
     private const int maxLength = 200;
 
     private RadzenTextBox AppNameRadzenTextBox { get; set; } = new();
 
-    private void OnSelectAppToPickUp(ApplicationDTO app, int versionId)
-    {
-        ApplicationsToPickUp.Remove(app);
-
-        var appVersion = app.Versions.FirstOrDefault(x => x.Id == versionId);
-        if (appVersion != null)
-            ApplicationsPicked.Add(Copies.Copy(app, appVersion));
-
-        StateHasChanged();
-    }
-
-    private void OnDeleteAppPicked(ApplicationPicked appPicked)
-    {
-        ApplicationsPicked.Remove(appPicked);
-
-        var app = Applications.FirstOrDefault(x => x.Id == appPicked.Id);
-        if (app != null)
-            ApplicationsToPickUp.Add(Copies.Copy(app));
-
-        SortApplicationsToPickUp();
-        StateHasChanged();
-    }
-
+    public bool IncludeVersion { get; set; } = false;
 
     protected async Task AddButtonClick(ApplicationDTO args)
     {
         try
         {
-            foreach (var item in ApplicationsPicked)
+            var NewAppVersion = NewVersionComp?.GetVersionDTO();
+            if (NewAppVersion != null)
             {
-                NewApplicationToCreate.Versions[0].Compatibilities.Add(new AppCompatibilityDTO()
-                    {
-                        CompatibleWithVersionId = item.Version.Id
-                    });
+                NewApplicationToCreate.Versions.Add(NewAppVersion);
             }
 
-            var newApplication = await VersioningService.AddNewApplication(NewApplicationToCreate, NewApplicationToCreate.Versions[0],
-                NewApplicationToCreate.Versions[0].Compatibilities);
+            var newApplication = await VersioningService.AddNewApplication(NewApplicationToCreate);
             if (newApplication.IsSuccess)
-                Navigation.NavigateTo($"AppVersionView/{newApplication.Value.Key}/{newApplication.Value.Value}");
+            {
+                if (newApplication.Value.Value > 0)
+                    Navigation.NavigateTo($"AppVersionView/{newApplication.Value.Key}/{newApplication.Value.Value}");
+                else
+                {
+                    SuccessNotify($"Successfully created application {NewApplicationToCreate.Name}!");
+                    Navigation.NavigateTo($"AppVersionsView");
+                }
+            }
             else
                 ErrorNotify(newApplication.ErrorData?.Description);
 
-            ApplicationsToPickUp = Applications.Where(x => x.Versions.Count > 0).ToList().ConvertAll(Copies.Copy);
-            SortApplicationsToPickUp();
-            ApplicationsPicked.Clear();
             NewApplicationToCreate = new();
-            AddVersion();
 
-            StateHasChanged();
+            //StateHasChanged();
         }
         catch (Exception ex)
         {
@@ -135,55 +118,19 @@
         }
     }
 
-    private void SortApplicationsToPickUp()
-    {
-        foreach (var item in ApplicationsToPickUp)
-        {
-            item.Versions = item.Versions.OrderByDescending(x => x.Major).ThenByDescending(g => g.Minor).ThenByDescending(r => r.Patch).ToList();
-        }
-    }
-
-    private void HandleMajorVersionChange(int major)
-    {
-        NewApplicationToCreate.Versions[0].Major = major;
-    }
-
-    private void HandleMinorVersionChange(int minor)
-    {
-        NewApplicationToCreate.Versions[0].Minor = minor;
-    }
-
-    private void HandlePatchVersionChange(int patch)
-    {
-        NewApplicationToCreate.Versions[0].Patch = patch;
-    }
-
     protected override async Task OnInitializedAsync()
     {
-        AddVersion();
+        Applications.Clear();
 
         var apps = await VersioningService.GetAllApplications();
         if (apps.IsSuccess)
-            Applications = apps.Value ?? [];
+            Applications = apps.Value?.ToList() ?? [];
         else
             ErrorNotify(apps.ErrorData?.Description);
 
-        ApplicationsToPickUp = Applications.Where(x => x.Versions.Count > 0).ToList().ConvertAll(Copies.Copy);
-        SortApplicationsToPickUp();
+        Applications = Applications.Where(x => x.Versions.Count > 0).ToList().ConvertAll(Copies.Copy);
 
         await base.OnInitializedAsync();
-    }
-
-    private void AddVersion()
-    {
-        NewApplicationToCreate.Versions.Add(new AppVersionDTO()
-            {
-                Compatibilities = [],
-                AppId = NewApplicationToCreate.Id,
-                Major = 1,
-                Minor = 0,
-                Patch = 0
-            });
     }
 
     private void ErrorNotify(string? error)
@@ -192,6 +139,16 @@
             {
                 Severity = NotificationSeverity.Error,
                 Detail = error ?? "NO_ERROR_FIX_ME",
+                Duration = 3000
+            });
+    }
+
+    private void SuccessNotify(string msg)
+    {
+        NotificationService.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Success,
+                Detail = msg,
                 Duration = 3000
             });
     }

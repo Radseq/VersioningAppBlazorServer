@@ -19,31 +19,36 @@
 
             @if (selectedApp != null)
             {
-                <RadzenLabel Text="Select Version" Component="DropDownBindValue2" />
+                <RadzenLabel Text="Select Version" Component="DropDownChangeVersion" />
                 <RadzenDropDown @bind-Value=@selectedAppVersionId Change="@(args => OnChangeAppVersion(args))"
                                 Data=@selectedApp?.Versions
                                 TextProperty="@nameof(AppVersionDTO.Version)" ValueProperty="@nameof(AppVersionDTO.Id)"
-                                Style="width: 100%; max-width: 400px;" Name="DropDownBindValue2" />
+                                Style="width: 100%; max-width: 400px;" Name="DropDownChangeVersion" />
             }
         </RadzenStack>
-        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center"
-                     JustifyContent="JustifyContent.Center" Gap="0.5rem" class="rz-pb-md-4 rz-pb-sm-2">
+        <RadzenRow AlignItems="AlignItems.Center"
+                   JustifyContent="JustifyContent.Center" Gap="0.5rem" class="rz-pb-md-4 rz-pb-sm-2">
             @if (selectedApp != null)
             {
-                <RadzenCard>
-                    <RadzenText TextStyle="TextStyle.Subtitle2" TagName="TagName.H3">App description</RadzenText>
-                    <RadzenTextArea @bind-Value=@selectedApp.Description Disabled Style="width: 100%" aria-label="application note here" />
-                </RadzenCard>
+                <RadzenColumn Size="12" SizeMD="12" SizeLG="6">
+                    <RadzenCard>
+                        <RadzenText TextStyle="TextStyle.Subtitle2" TagName="TagName.H3">App description</RadzenText>
+                        <RadzenTextArea @bind-Value=@selectedApp.Description Disabled Style="width: 100%" aria-label="application note here" />
+                    </RadzenCard>
+                </RadzenColumn>
             }
             @if (selectedAppVersion != null)
             {
-
-                <RadzenCard>
-                    <RadzenText TextStyle="TextStyle.Subtitle2" TagName="TagName.H3">Changelog of version</RadzenText>
-                    <RadzenTextArea @bind-Value=@selectedAppVersion.Description Disabled Style="width: 100%" aria-label="application version changelog here" />
-                </RadzenCard>
+                <RadzenColumn Size="12" SizeMD="12" SizeLG="6">
+                    <RadzenCard>
+                        <RadzenText TextStyle="TextStyle.Subtitle2" TagName="TagName.H3">Changelog of version</RadzenText>
+                        <RadzenTextArea @bind-Value=@selectedAppVersion.Description
+                                        Rows="@(selectedAppVersion.Description.Length > 300 ? 10 : 2)"
+                                        Disabled Style="width: 100%;" aria-label="application version changelog here" />
+                    </RadzenCard>
+                </RadzenColumn>
             }
-        </RadzenStack>
+        </RadzenRow>
         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center"
                      JustifyContent="JustifyContent.Center" Gap="0.5rem" class="rz-pb-md-4 rz-pb-sm-2">
             @if (selectedApp != null)
@@ -55,15 +60,19 @@
             {
                 <RadzenButton ButtonStyle="ButtonStyle.Danger" Text="Delete selected version"
                               Variant="Variant.Flat" Click="()=>DeleteAppVersionButtonClick(selectedAppVersion.Id)" />
+
+                <RadzenCheckBox @bind-Value=@selectedAppVersion.IsProduction Name="IsProductionVersionCheckBox" TValue="bool" Change="(arg)=>SetProductionVersion(arg)" />
+                <RadzenLabel Text="Is production version(old versions will set to false)"
+                             Component="IsProductionVersionCheckBox" class="rz-ms-2" />
             }
         </RadzenStack>
         @if (selectedApp != null && selectedAppVersion != null)
         {
             <VersioningAppBlazorServer.Components.VersioningComp.ViewAppVersion ApplicationName="@selectedApp.Name"
-                                                                    AppsViews=@CompatibleApplications
-                                                                    SelectedAppVersion=@selectedAppVersion
-                                                                    OnProcessVersionEvent="OnProcessVersionEvent"
-                                                                    @key="selectedAppVersionId" />
+                                                                                AppsViews=@CompatibleApplications
+                                                                                SelectedAppVersion=@selectedAppVersion
+                                                                                OnProcessVersionEvent="OnProcessVersionEvent"
+                                                                                @key="selectedAppVersionId" />
         }
     </Body>
 </PageBody>
@@ -77,7 +86,18 @@
     private AppVersionDTO? selectedAppVersion;
     private int? selectedAppVersionId;
 
-    public IList<ApplicationView> CompatibleApplications { get; set; } = [];
+    private IList<ApplicationView> CompatibleApplications { get; set; } = [];
+
+    private async Task SetProductionVersion(bool value)
+    {
+        var result = await VersioningService.SetVersionToProduction(selectedApp!.Id, selectedAppVersion!.Id, value);
+        if (result.HasFailed)
+            ErrorNotify(result.ErrorData?.Description);
+
+        var app = await VersioningService.GetApplicationById(selectedApp!.Id);
+        if (app.IsSuccess)
+            selectedApp = app.Value;
+    }
 
     private async Task OnChangeApp(object value)
     {
@@ -179,7 +199,6 @@
         }
 
         selectedApp = app.Value;
-
         selectedAppIdDummy = appId;
 
         var version = await VersioningService.GetAppVersion(versionId);
