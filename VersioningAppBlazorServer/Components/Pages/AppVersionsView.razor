@@ -71,8 +71,14 @@
             <VersioningAppBlazorServer.Components.VersioningComp.ViewAppVersion ApplicationName="@selectedApp.Name"
                                                                                 AppsViews=@CompatibleApplications
                                                                                 SelectedAppVersion=@selectedAppVersion
-                                                                                OnProcessVersionEvent="OnProcessVersionEvent"
-                                                                                @key="selectedAppVersionId" />
+                                                                                OnProcessVersionEvent="OnProcessVersionEvent" />
+        }
+        @if (selectedApp != null && selectedAppVersion != null && AppsUsingThisVersion.Count > 0)
+        {
+            <VersioningAppBlazorServer.Components.VersioningComp.OtherApssUseThisVersion ApplicationName="@selectedApp.Name"
+                                                                                         AppsViews=@AppsUsingThisVersion
+                                                                                         SelectedAppVersion=@selectedAppVersion
+                                                                                         OnProcessVersionEvent="OnProcessVersionEvent" />
         }
     </Body>
 </PageBody>
@@ -86,7 +92,10 @@
     private AppVersionDTO? selectedAppVersion;
     private int? selectedAppVersionId;
 
-    private IList<ApplicationView> CompatibleApplications { get; set; } = [];
+    private List<ApplicationView> CompatibleApplications { get; set; } = [];
+
+    private List<ApplicationView> AppsUsingThisVersion { get; set; } = [];
+
 
     private async Task SetProductionVersion(bool value)
     {
@@ -131,9 +140,21 @@
 
             var compatibleApps = await VersioningService.GetCompatibilityApplications(versionId);
             if (compatibleApps.IsSuccess)
-                CompatibleApplications = compatibleApps.Value?.ToList().ConvertAll(Mappers.MapApplication_to_ApplicationView) ?? [];
+            {
+                CompatibleApplications = new();
+                CompatibleApplications.AddRange(compatibleApps.Value?.ToList().ConvertAll(Mappers.MapApplication_to_ApplicationView) ?? []);
+            }
             else
                 ErrorNotify(compatibleApps.ErrorData?.Description);
+
+            var appsUsingThisVersion = await VersioningService.GetOtherAppsUsingThisVersion(versionId);
+            if (appsUsingThisVersion.IsSuccess)
+            {
+                AppsUsingThisVersion = new();
+                AppsUsingThisVersion.AddRange(appsUsingThisVersion.Value?.ToList().ConvertAll(Mappers.MapApplication_to_ApplicationView) ?? []);
+            }
+            else
+                ErrorNotify(appsUsingThisVersion.ErrorData?.Description);
         }
     }
 
@@ -214,13 +235,24 @@
             selectedAppVersionId = selectedAppVersion.Id;
 
             var compatibleApps = await VersioningService.GetCompatibilityApplications(selectedAppVersion.Id);
-            if (version.HasFailed)
+            if (compatibleApps.IsSuccess)
             {
-                ErrorNotify(compatibleApps.ErrorData?.Description);
+                CompatibleApplications = new();
+                CompatibleApplications.AddRange(compatibleApps.Value?.ToList().ConvertAll(Mappers.MapApplication_to_ApplicationView) ?? []);
             }
-            CompatibleApplications = compatibleApps.Value?.ToList().ConvertAll(Mappers.MapApplication_to_ApplicationView) ?? [];
+            else
+                ErrorNotify(compatibleApps.ErrorData?.Description);
+
+            var appsUsingThisVersion = await VersioningService.GetOtherAppsUsingThisVersion(selectedAppVersion.Id);
+            if (appsUsingThisVersion.IsSuccess)
+            {
+                AppsUsingThisVersion = new();
+                AppsUsingThisVersion.AddRange(appsUsingThisVersion.Value?.ToList().ConvertAll(Mappers.MapApplication_to_ApplicationView) ?? []);
+            }
+            else
+                ErrorNotify(appsUsingThisVersion.ErrorData?.Description);
         }
-        StateHasChanged();
+        //StateHasChanged();
     }
 
     private async Task OnAppCompatibilityDelete(int appId, int versionId)

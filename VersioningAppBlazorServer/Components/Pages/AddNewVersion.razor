@@ -34,14 +34,23 @@
                                        InputAttributes="@(new Dictionary<string,object>(){{ "aria-label", "select company" }})" />
                     </RadzenRow>
                 }
+                @if (selectedApp?.Versions.Count > 0)
+                {
+                    <RadzenRow>
+                        <RadzenCheckBox @bind-Value=@DoInheritCompatibilityOfPreviousVersions Name="DoInheritCheckBox"
+                                        TValue="bool" />
+                        <RadzenLabel Text="Do inherit compatibility of previous versions" Component="DoInheritCheckBox" class="rz-ms-2" />
+                    </RadzenRow>
 
-                <VersioningAppBlazorServer.Components.VersioningComp.NewVersion Applications="Applications"
-                                                                                MinMajor="MinMajor"
-                                                                                MinMinor="MinMinor"
-                                                                                MinPatch="MinPatch"
-                                                                                @key=selectedApp?.Id
-                                                                                @ref=NewVersionComp />
-
+                }
+                @if (MinMajor.HasValue && MinMinor.HasValue && MinPatch.HasValue)
+                {
+                    <VersioningAppBlazorServer.Components.VersioningComp.NewVersion Applications="Applications"
+                                                                                    MinMajor="MinMajor.Value"
+                                                                                    MinMinor="MinMinor.Value"
+                                                                                    MinPatch="MinPatch.Value"
+                                                                                    @ref=NewVersionComp />
+                }
                 @if (selectedApp != null)
                 {
                     <RadzenColumn>
@@ -58,14 +67,15 @@
 
     private List<DropDownItem> ApplicationNames = [];
     private List<ApplicationDTO> Applications { get; set; } = [];
-    //private List<ApplicationDTO> ApplicationsLoaded { get; set; } = [];
 
     private ApplicationDTO? selectedApp;
     private int? selectedAppIdDummy;
 
-    private int MinMajor { get; set; } = 1;
-    private int MinMinor { get; set; } = 0;
-    private int MinPatch { get; set; } = 0;
+    private int? MinMajor { get; set; } = null;
+    private int? MinMinor { get; set; } = null;
+    private int? MinPatch { get; set; } = null;
+
+    private bool DoInheritCompatibilityOfPreviousVersions { get; set; } = false;
 
     private async Task OnChangeApp(object value)
     {
@@ -83,6 +93,8 @@
             selectedApp!.Versions = selectedApp.Versions.OrderByDescending(x => x.Major)
                 .ThenByDescending(g => g.Minor).ThenByDescending(r => r.Patch).ToList();
 
+            Applications = new();
+
             var apps = await VersioningService.GetAllApplications();
             if (apps.IsSuccess)
                 Applications = apps.Value?.ToList() ?? [];
@@ -95,8 +107,6 @@
             MinMajor = selectedApp?.Versions.FirstOrDefault()?.Major ?? 1;
             MinMinor = selectedApp?.Versions.FirstOrDefault()?.Minor ?? 0;
             MinPatch = selectedApp?.Versions.FirstOrDefault()?.Patch + 1 ?? 0;
-
-            StateHasChanged();
         }
     }
 
@@ -105,6 +115,12 @@
         try
         {
             var NewAppVersion = NewVersionComp?.GetVersionDTO();
+            if (NewAppVersion == null)
+            {
+                ErrorNotify("Error while saving new version");
+                return;
+            }
+
             if (NewAppVersion != null && selectedApp != null)
             {
                 NewAppVersion.AppId = selectedApp.Id;
@@ -116,7 +132,7 @@
                 return;
             }
 
-            var newVersionResult = await VersioningService.AddNewVersion(NewAppVersion);
+            var newVersionResult = await VersioningService.AddNewVersion(NewAppVersion, DoInheritCompatibilityOfPreviousVersions);
             if (newVersionResult.IsSuccess)
             {
                 Navigation.NavigateTo($"AppVersionView/{NewAppVersion.AppId}/{newVersionResult.Value}");

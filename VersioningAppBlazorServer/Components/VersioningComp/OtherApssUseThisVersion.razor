@@ -1,0 +1,115 @@
+﻿@inject NotificationService NotificationService
+@inject DialogService dialogService
+
+@if (AppsViews != null && AppsViews.Count > 0 && AppsViews.Count > 0)
+{
+    <h3>Other applications dependent on version @SelectedAppVersion?.Version of the @ApplicationName application.</h3>
+
+    <RadzenRow Gap="1rem">
+        <RadzenColumn Size="12" SizeMD="6">
+
+            <RadzenDataGrid Data="@AppsViews" AllowVirtualization="true"
+                            AllowFiltering="true" FilterPopupRenderMode="PopupRenderMode.OnDemand"
+                            FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
+                            LogicalFilterOperator="LogicalFilterOperator.Or"
+                            TItem="ApplicationView"
+                            AllowSorting="true" ColumnWidth="100px" @bind-Value="@SelectedApplication">
+                <Columns>
+                    <RadzenDataGridColumn Property="@nameof(ApplicationView.Name)" Title="Name" MinWidth="170px" />
+                </Columns>
+            </RadzenDataGrid>
+        </RadzenColumn>
+        <RadzenColumn Size="12" SizeMD="6">
+            <RadzenCard Variant="Variant.Outlined" Style="height: 100%;">
+                <RadzenStack Gap="1rem">
+                    <RadzenCard Variant="Variant.Text" class="rz-background-color-primary-lighter rz-color-on-primary-lighter">
+                        Application:
+                        <b>@SelectedApplication?.FirstOrDefault()?.Name</b>
+                    </RadzenCard>
+                    <RadzenDataGrid AllowFiltering="true" AllowPaging="true" AllowSorting="true" Data="@(SelectedApplication?.FirstOrDefault()?.Versions)">
+                        <Columns>
+                            <RadzenDataGridColumn Property="Version" Title="Version" />
+                            <RadzenDataGridColumn Property="Version" Title="Przejdź">
+                                <Template Context="app">
+                                    <RadzenButton Icon="login" ButtonStyle="ButtonStyle.Primary" Click="@(args => OnNavigateToViewBtnClick(app))" />
+                                </Template>
+                            </RadzenDataGridColumn>
+                            <RadzenDataGridColumn Property="Version.Description" Title="Changelog" MinWidth="200px">
+                                <Template Context="app">
+                                    @app.Description
+                                </Template>
+                            </RadzenDataGridColumn>
+                            <RadzenDataGridColumn Title="Last 10 changelogs" MinWidth="200px">
+                                <Template Context="app">
+                                    <RadzenButton Icon="list" ButtonStyle="ButtonStyle.Primary" Click="@(args => OnShowLastChangelogs(SelectedApplication?.FirstOrDefault()))" />
+                                </Template>
+                            </RadzenDataGridColumn>
+                        </Columns>
+                    </RadzenDataGrid>
+                </RadzenStack>
+            </RadzenCard>
+        </RadzenColumn>
+    </RadzenRow>
+}
+else if (SelectedAppVersion != null && !string.IsNullOrWhiteSpace(ApplicationName))
+{
+    <h3>No other applications are using version @SelectedAppVersion?.Version of the @ApplicationName application</h3>
+}
+
+@code {
+    [Parameter]
+    public EventCallback<VersionEvent> OnProcessVersionEvent { get; set; }
+
+    [Parameter]
+    public IList<ApplicationView> AppsViews { get; set; } = [];
+
+    [Parameter]
+    public string ApplicationName { get; set; } = "ERROR";
+
+    [Parameter]
+    public AppVersionDTO? SelectedAppVersion { get; set; }
+
+    private IList<ApplicationView>? SelectedApplication { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        if (AppsViews.Count > 0)
+            SelectedApplication = [AppsViews.FirstOrDefault()!];
+        base.OnParametersSet();
+    }
+
+    private async Task OnProcessAllVersionsEvent(VersionEvent versionEvent)
+    {
+        await OnProcessVersionEvent.InvokeAsync(versionEvent);
+    }
+
+    private async Task OnShowLastChangelogs(ApplicationView applicationView)
+    {
+        await OnProcessVersionEvent.InvokeAsync(new VersionEvent()
+            {
+                AppId = applicationView.Id,
+                VersionId = applicationView.SelectedAppVersion?.Id ?? -1,
+                EventType = VersionEventType.SHOW_CHANGELOGS
+            });
+    }
+
+    private void ErrorNotify(string? error)
+    {
+        NotificationService.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Error,
+                Detail = error ?? "NO_ERROR_FIX_ME",
+                Duration = 3000
+            });
+    }
+
+    private async Task OnNavigateToViewBtnClick(AppVersionDTO arg)
+    {
+        await OnProcessVersionEvent.InvokeAsync(new VersionEvent()
+            {
+                AppId = arg.AppId,
+                VersionId = arg.Id,
+                EventType = VersionEventType.NAVIGATE
+            });
+    }
+}

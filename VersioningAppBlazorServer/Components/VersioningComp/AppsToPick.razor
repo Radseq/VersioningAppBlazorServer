@@ -7,12 +7,19 @@
             <RadzenColumn Size="6" SizeMD="6" SizeLG="3" SizeXL="2">
                 <div class="shop-item">
                     <div class="item-name">@item.Name</div>
-                    <ul class="item-list">
+@*                     <ul class="item-list">
                         @foreach (var version in item.Versions)
                         {
                             <li @onclick="()=>OnSelectAppToPickUp?.Invoke(new SelectAppToPickUpResult(item, version.Id))">@version.Version</li>
                         }
-                    </ul>
+                    </ul> *@
+                    <RadzenListBox Data="item.Versions"
+                                   TValue="AppVersionDTO"
+                                   Change="@(args => OnItemClicked(args, item))"
+                                   TextProperty="@nameof(AppVersionDTO.Version)"
+                                   ValueProperty="@nameof(AppVersionDTO.Id)"
+                                   Style="width: 100%; max-width: 200px; height: 100px"
+                                   InputAttributes="@(new Dictionary<string,object>(){{ "aria-label", "select company" }})" />
                 </div>
             </RadzenColumn>
         }
@@ -25,4 +32,13 @@
 
     [Parameter]
     public Action<SelectAppToPickUpResult>? OnSelectAppToPickUp { get; set; }
+
+    private void OnItemClicked(object o, ApplicationDTO application)
+    {
+        var version = application.Versions.FirstOrDefault(x => x.Id == (int)o);
+        if (version != null)
+        {
+            OnSelectAppToPickUp?.Invoke(new SelectAppToPickUpResult(application, version.Id));
+        }
+    }
 }

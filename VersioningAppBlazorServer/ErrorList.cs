@@ -24,6 +24,7 @@ public partial class ErrorList
     public const string _205 = "205 Failed to delete application";
     public const string _206 = "206 Failed to retrieve all applications";
     public const string _207 = "207 Failed to retrieve names of all applications";
+    public const string _208 = "208 Failed to get applications using this version";
 
     // 300 application versions
     public const string _301 = "301 Failed to add version to application";

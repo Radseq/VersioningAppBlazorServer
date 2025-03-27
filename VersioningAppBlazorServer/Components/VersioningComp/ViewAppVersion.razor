@@ -28,7 +28,7 @@
                 <Template Context="app">
                     @if (app.Versions != null && app.Versions.Any())
                     {
-                        @if (app.Versions.Count > 0)
+                        @if (app.Versions.Count > 0 && app.SelectedAppVersion != null)
                         {
                             <TextWithButtons CurrentVersionId="app.SelectedAppVersion!.Id" VersionsData="app.Versions"
                                              OnProcessVersionEvent="OnProcessAllVersionsEvent" />

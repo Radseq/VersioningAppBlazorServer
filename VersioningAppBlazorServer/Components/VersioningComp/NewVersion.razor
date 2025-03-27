@@ -4,12 +4,6 @@
                  Component="IsProductionVersionCheckBox" class="rz-ms-2" />
 </RadzenRow>
 
-<RadzenRow>
-    <RadzenCheckBox @bind-Value=@NewAppVersion.DoInheritCompatibilityOfPreviousVersions Name="DoInheritCheckBox"
-                    TValue="bool" />
-    <RadzenLabel Text="Do inherit compatibility of previous versions" Component="DoInheritCheckBox" class="rz-ms-2" />
-</RadzenRow>
-
 <VersioningAppBlazorServer.Components.VersioningComp.VersionNumeric MajorMin="MinMajor"
                                                                     MinorMin="MinMinor"
                                                                     PatchMin="MinPatch"
@@ -46,13 +40,13 @@
     [Parameter]
     public int MinPatch { get; set; } = 0;
 
-    private const int maxLength = 200;
+    private const int maxLength = 2000;
 
     private AppVersionDTO NewAppVersion { get; set; } = new();
 
     public AppVersionDTO GetVersionDTO()
     {
-        return NewAppVersion;
+        return Copies.Copy(NewAppVersion);
     }
 
     protected override void OnParametersSet()

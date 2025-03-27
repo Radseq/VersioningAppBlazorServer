@@ -7,7 +7,7 @@ namespace VersioningAppBlazorServer.Services.Versioning;
 public interface IVersioningService
 {
     Task<MessageResult<KeyValuePair<int, int>>> AddNewApplication(ApplicationDTO application);
-    Task<MessageResult<int>> AddNewVersion(AppVersionDTO appVersion);
+    Task<MessageResult<int>> AddNewVersion(AppVersionDTO appVersion, bool doInheritCompatibilityOfPreviousVersions);
     Task<MessageResult> AddNewVersionCompatibilities(int versionId, List<AppCompatibilityDTO> compatibilities);
     Task<MessageResult<ApplicationDTO>> GetApplicationById(int id);
     Task<MessageResult<List<DropDownItem>>> GetAllApplicationsNames();
@@ -23,4 +23,5 @@ public interface IVersioningService
     Task<MessageResult> DowngradeApplicationVersionCompatibility(int appId, int oldVersionId, int newVersionId);
     Task<MessageResult<IList<ViewChangelog>>> LoadLastChangelogs(int appId, int versionId);
     Task<MessageResult> SetVersionToProduction(int appId, int versionId, bool isProduction);
+    Task<MessageResult<List<ApplicationDTO>>> GetOtherAppsUsingThisVersion(int versionId);
 }

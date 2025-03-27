@@ -87,7 +87,7 @@ public class VersioningService : IVersioningService
         }
     }
 
-    public async Task<MessageResult<int>> AddNewVersion(AppVersionDTO appVersion)
+    public async Task<MessageResult<int>> AddNewVersion(AppVersionDTO appVersion, bool doInheritCompatibilityOfPreviousVersions)
     {
         try
         {
@@ -134,7 +134,7 @@ public class VersioningService : IVersioningService
             }
 
             // inherit
-            if (appVersion.DoInheritCompatibilityOfPreviousVersions)
+            if (doInheritCompatibilityOfPreviousVersions)
             {
                 foreach (var item in getCompatibilitiesPreviousVersion)
                 {
@@ -538,6 +538,30 @@ public class VersioningService : IVersioningService
         {
             logger.LogError(ex, "Can't mark version to production one, version Id = {versionId}, api id = {apiId}", versionId, appId);
             return MessageResult.FailureErrorNumberExtract(ErrorList._306);
+        }
+    }
+    public async Task<MessageResult<List<ApplicationDTO>>> GetOtherAppsUsingThisVersion(int versionId)
+    {
+        try
+        {
+            var appsCompatibilityWithThisVersion = await repoAppCompatibility.GetWhereAsync(x => x.TargetVersionId == versionId);
+
+            var appsVersions = await repoAppVersion.GetWhereAsync(x =>
+                appsCompatibilityWithThisVersion.Select(x => x.SourceVersionId).Contains(x.Id));
+
+            var apps = appsVersions.Select(x => x.Application).Distinct().ToList().ConvertAll(Mappers.MapToDTO);
+
+            for (int i = 0; i < apps.Count; i++)
+            {
+                apps[i].Versions = apps[i].Versions.OrderByDescending(x => x.Id).ToList();
+            }
+
+            return MessageResult<List<ApplicationDTO>>.Success(apps);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Can't get other applications using this version, version Id = {versionId}", versionId);
+            return MessageResult<List<ApplicationDTO>>.FailureErrorNumberExtract(ErrorList._208);
         }
     }
 }

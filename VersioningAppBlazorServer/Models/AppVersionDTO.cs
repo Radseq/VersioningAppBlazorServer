@@ -9,7 +9,6 @@ public class AppVersionDTO
     public int Patch { get; set; } = 0;
     public string Description { get; set; } = string.Empty;
     public bool IsProduction { get; set; } = false;
-    public bool DoInheritCompatibilityOfPreviousVersions { get; set; } = false;
 
     public string Version => $"{Major}.{Minor}.{Patch} {(IsProduction ? "©" : "")}";
     public List<AppCompatibilityDTO> Compatibilities { get; set; } = [];
