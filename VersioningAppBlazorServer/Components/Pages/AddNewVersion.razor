@@ -114,12 +114,13 @@
     {
         try
         {
-            var NewAppVersion = NewVersionComp?.GetVersionDTO();
-            if (NewAppVersion == null)
+            var NewAppVersionCopy = NewVersionComp?.GetVersionDTO();
+            if (NewAppVersionCopy == null)
             {
                 ErrorNotify("Error while saving new version");
                 return;
             }
+            var NewAppVersion = Copies.Copy(NewAppVersionCopy);
 
             if (NewAppVersion != null && selectedApp != null)
             {

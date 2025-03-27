@@ -553,7 +553,8 @@ public class VersioningService : IVersioningService
 
             for (int i = 0; i < apps.Count; i++)
             {
-                apps[i].Versions = apps[i].Versions.OrderByDescending(x => x.Id).ToList();
+                var versions = appsVersions.Where(x => x.ApplicationId == apps[i].Id).OrderByDescending(x => x.Id);
+                apps[i].Versions = versions.ToList().ConvertAll(Mappers.MapToDTO);
             }
 
             return MessageResult<List<ApplicationDTO>>.Success(apps);
