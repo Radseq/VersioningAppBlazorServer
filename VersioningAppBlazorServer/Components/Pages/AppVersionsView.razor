@@ -60,7 +60,8 @@
             {
                 <RadzenButton ButtonStyle="ButtonStyle.Danger" Text="Delete selected version"
                               Variant="Variant.Flat" Click="()=>DeleteAppVersionButtonClick(selectedAppVersion.Id)" />
-
+                <RadzenCheckBox @bind-Value=@IsProduction Name="IsProductionVersionCheckBox" TValue="bool"
+                                Change="(arg)=>SetProductionVersion(arg)" />
                 <RadzenCheckBox @bind-Value=@selectedAppVersion.IsProduction Name="IsProductionVersionCheckBox" TValue="bool" Change="(arg)=>SetProductionVersion(arg)" />
                 <RadzenLabel Text="Is production version(old versions will set to false)"
                              Component="IsProductionVersionCheckBox" class="rz-ms-2" />
@@ -96,9 +97,23 @@
 
     private List<ApplicationView> AppsUsingThisVersion { get; set; } = [];
 
+    private bool IsProduction { get; set; } = false;
 
     private async Task SetProductionVersion(bool value)
     {
+        if (selectedAppVersion != null)
+        {
+            IsProduction = selectedAppVersion.IsProduction;
+        }
+
+        var confirm = await ConfirmYesNo($"Are you sure you want to assign/remove the production flag for version " +
+        $"{selectedAppVersion?.Version} of application {selectedApp?.Name}? The previous version with this flag set will be changed to false.");
+        if (!confirm)
+            return;
+
+        if (selectedAppVersion != null)
+            selectedAppVersion.IsProduction = value;
+
         var result = await VersioningService.SetVersionToProduction(selectedApp!.Id, selectedAppVersion!.Id, value);
         if (result.HasFailed)
             ErrorNotify(result.ErrorData?.Description);
@@ -138,6 +153,8 @@
 
             selectedAppVersionId = versionId;
 
+            IsProduction = selectedAppVersion.IsProduction;
+
             var compatibleApps = await VersioningService.GetCompatibilityApplications(versionId);
             if (compatibleApps.IsSuccess)
             {
@@ -166,7 +183,7 @@
                 await UpgradeApplicationVersionCompatibility(versionEvent.AppId, versionEvent.OldVersionId, versionEvent.VersionId);
                 break;
             case VersionEventType.DOWNGRADE:
-                await UpgradeApplicationVersionCompatibility(versionEvent.AppId, versionEvent.OldVersionId, versionEvent.VersionId);
+                await UpgradeApplicationVersionCompatibility(versionEvent.AppId, versionEvent.OldVersionId, versionEvent.VersionId, true);
                 break;
             case VersionEventType.NAVIGATE:
                 await OnAppVersionClicked(versionEvent.AppId, versionEvent.VersionId);
@@ -183,11 +200,28 @@
         }
     }
 
-    private async Task UpgradeApplicationVersionCompatibility(int appId, int? oldVersionId, int? newVersionId)
+    private async Task UpgradeApplicationVersionCompatibility(int appId, int? oldVersionId,
+        int? newVersionId, bool isDowngrade = false)
     {
         if (!oldVersionId.HasValue || !newVersionId.HasValue)
-            ErrorNotify("No old version available for compatibility change.");
-
+        {
+            ErrorNotify("No old version or new version available for compatibility change.");
+            return;
+        }
+        AppVersionDTO? newVersion = GetVersion(newVersionId.Value);
+        AppVersionDTO? oldVersion = GetVersion(oldVersionId.Value);
+        if (isDowngrade)
+        {
+            var confirm = await ConfirmYesNo($"Do you want downgrade compatibility version from {oldVersion!.Version}, to {newVersion!.Version}");
+            if (!confirm)
+                return;
+        }
+        else
+        {
+            var confirm = await ConfirmYesNo($"Do you want upgrade compatibility version from {oldVersion!.Version}, to {newVersion!.Version}");
+            if (!confirm)
+                return;
+        }
         var result = await VersioningService.UpgradeApplicationVersionCompatibility(appId, oldVersionId!.Value, newVersionId!.Value);
         if (result.HasFailed)
             ErrorNotify(result.ErrorData?.Description);
@@ -357,6 +391,17 @@
         await base.OnInitializedAsync();
     }
 
+    private AppVersionDTO? GetVersion(int versionId)
+    {
+        foreach (var item in CompatibleApplications)
+        {
+            var version = item.Versions.FirstOrDefault(x => x.Id == versionId);
+            if (version != null)
+                return version;
+        }
+        return null;
+    }
+
     private void ErrorNotify(string? error)
     {
         NotificationService.Notify(new NotificationMessage
@@ -369,7 +414,7 @@
 
     private async Task<bool> ConfirmYesNo(string text)
     {
-        var dialogResult = await dialogService.Confirm("Are you sure?", text, new ConfirmOptions()
+        var dialogResult = await dialogService.Confirm(text, "Are you sure?", new ConfirmOptions()
             {
                 OkButtonText = "Yes",
                 CancelButtonText = "No",

@@ -1,21 +1,25 @@
-﻿@if (VersionsData.Count > 0)
+﻿@inject TooltipService tooltipService
+
+@if (VersionsData.Count > 0)
 {
     <RadzenDataGrid Data="@VersionsData" TItem="AppVersionDTO" AllowPaging="false" ShowHeader="false"
                     class="no-header">
         <Columns>
-            <RadzenDataGridColumn Title="Version" Property="Version" MinWidth="100px"/>
+            <RadzenDataGridColumn Title="Version" Property="Version" MinWidth="100px" />
             <RadzenDataGridColumn TItem="AppVersionDTO" Context="AppVersionDTO" Frozen="true"
                                   FrozenPosition="FrozenColumnPosition.Right" Width="60px">
                 <Template Context="AppVersionDTO">
                     @if (AppVersionDTO.Id > CurrentVersionId)
                     {
                         <RadzenButton Icon="keyboard_arrow_up" ButtonStyle="ButtonStyle.Success"
-                                      Click="@(args => OnUpdateVersionBtnClick(AppVersionDTO))" />
+                                      Click="@(args => OnUpdateVersionBtnClick(AppVersionDTO))"
+                                      MouseEnter="@(args => ShowUpdateTooltip(args, AppVersionDTO) )" />
                     }
                     @if (AppVersionDTO.Id < CurrentVersionId)
                     {
                         <RadzenButton Icon="keyboard_arrow_down" ButtonStyle="ButtonStyle.Warning"
-                                      Click="@(args => OnDowngradeVersionBtnClick(AppVersionDTO))" />
+                                      Click="@(args => OnDowngradeVersionBtnClick(AppVersionDTO))"
+                                      MouseEnter="@(args => ShowDowngradeTooltip(args, AppVersionDTO) )" />
                     }
                 </Template>
             </RadzenDataGridColumn>
@@ -32,7 +36,9 @@
                 <Template Context="AppVersionDTO">
                     @if (AppVersionDTO.Id == CurrentVersionId)
                     {
-                        <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Click="@(args => OnDeleteCompatibilityBtnClick(AppVersionDTO))" />
+                        <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger"
+                                      Click="@(args => OnDeleteCompatibilityBtnClick(AppVersionDTO))"
+                                      MouseEnter="@(args => ShowDeleteCompTooltip(args, AppVersionDTO) )" />
                     }
                 </Template>
             </RadzenDataGridColumn>
@@ -100,5 +106,23 @@
                 OldVersionId = CurrentVersionId,
                 EventType = VersionEventType.DELETE_COMPATIBILITY
             });
+    }
+
+    private void ShowDowngradeTooltip(ElementReference elementReference, AppVersionDTO appVersionDTO)
+    {
+        tooltipService.Open(elementReference, $"Downgrade to {appVersionDTO.Version}",
+            new TooltipOptions() { Delay = 200, Duration = 5000 });
+    }
+
+    private void ShowUpdateTooltip(ElementReference elementReference, AppVersionDTO appVersionDTO)
+    {
+        tooltipService.Open(elementReference, $"Update to {appVersionDTO.Version}",
+            new TooltipOptions() { Delay = 200, Duration = 5000 });
+    }
+
+    private void ShowDeleteCompTooltip(ElementReference elementReference, AppVersionDTO appVersionDTO)
+    {
+        tooltipService.Open(elementReference, $"Delete compatibility with {appVersionDTO.Version}",
+            new TooltipOptions() { Delay = 200, Duration = 5000 });
     }
 }

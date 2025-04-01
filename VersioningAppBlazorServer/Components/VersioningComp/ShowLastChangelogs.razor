@@ -6,65 +6,11 @@
     {
         <RadzenCard>
             <RadzenLabel Text="@item.Version" />
-            <div style="padding: 0.5rem;">
-                @foreach (var line in SplitByKeywords(item.ChangelogText))
-                {
-                    <div style="margin-bottom: 0.5rem;">
-                        @if (line.StartsWith("#feat"))
-                        {
-                            <span style="color: green; font-weight: bold;">@line</span>
-                        }
-                        else if (line.StartsWith("#refactor"))
-                        {
-                            <span style="color: orange; font-weight: bold;">@line</span>
-                        }
-                        else if (line.StartsWith("#fix"))
-                        {
-                            <span style="color: red; font-weight: bold;">@line</span>
-                        }
-                        else if (line.StartsWith("#build"))
-                        {
-                            <span style="color: blue; font-weight: bold;">@line</span>
-                        }
-                        else
-                        {
-                            <span>@line</span>
-                        }
-                    </div>
-                }
-            </div>
+            <ChangelogRenderer Text="@item.ChangelogText" />
         </RadzenCard>
     }
 </RadzenStack>
 
 @code {
     [Parameter] public List<ViewChangelog> Changelogs { get; set; } = [];
-
-    private List<string> SplitByKeywords(string input)
-    {
-        // Define the keywords to split by
-        var keywords = new[] { "#feat", "#refactor", "#fix", "#build", "merge" };
-
-        // Use regex to split the input string by keywords
-        var pattern = $"({string.Join("|", keywords.Select(Regex.Escape))})";
-        var parts = Regex.Split(input.ToLower(), pattern.ToLower())
-                         .Where(x => !string.IsNullOrWhiteSpace(x))
-                         .ToList();
-
-        // Combine the keyword with its corresponding description
-        var result = new List<string>();
-        for (int i = 0; i < parts.Count; i += 2)
-        {
-            if (i + 1 < parts.Count)
-            {
-                result.Add($"{parts[i]}{parts[i + 1]}");
-            }
-            else
-            {
-                result.Add(parts[i]);
-            }
-        }
-
-        return result;
-    }
 }

@@ -1,0 +1,90 @@
+﻿@using System.Text.RegularExpressions
+@using Microsoft.AspNetCore.Components
+
+@inject IConfiguration config
+
+@if (lines.Any())
+{
+    @foreach (var line in lines)
+    {
+        <div style="margin-bottom: 0.5rem;">
+            @if (!string.IsNullOrWhiteSpace(line.Name))
+            {
+                <span style="color: @line.Color; font-weight: bold;">@line.Name: @line.FormattedRest</span>
+            }
+            else
+            {
+                <span>@line.FormattedRest</span>
+            }
+        </div>
+    }
+}
+
+
+@code {
+    [Parameter] public string? Text { get; set; }
+
+    private List<ChangelogToken> Tokens { get; set; } = new();
+
+    private List<ParsedLine> lines = new();
+
+    protected override void OnParametersSet()
+    {
+        lines = ParseChangelog(Text ?? "", Tokens);
+    }
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        Tokens = config.GetSection("ChangelogTokens").Get<List<ChangelogToken>>();
+    }
+
+    private List<ParsedLine> ParseChangelog(string text, List<ChangelogToken> tokens)
+    {
+        var tokenMap = tokens.ToDictionary(
+            t => t.Name.Trim().ToLower(),
+            t => t.Color,
+            StringComparer.OrdinalIgnoreCase);
+
+        var results = new List<ParsedLine>();
+
+        foreach (var rawLine in text.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            string name = string.Empty;
+            string rest = rawLine;
+            string color = "black";
+
+            var match = Regex.Match(rawLine, @"^(#?\w+):?\s*(.*)", RegexOptions.IgnoreCase);
+            if (match.Success)
+            {
+                var candidate = match.Groups[1].Value.ToLower();
+                if (tokenMap.TryGetValue(candidate, out var matchedColor))
+                {
+                    name = match.Groups[1].Value;
+                    rest = match.Groups[2].Value;
+                    color = matchedColor;
+                }
+            }
+
+            // Convert links in the rest of the line
+            var formattedRest = Formatters.FormatUrls(rest);
+
+            results.Add(new ParsedLine
+                {
+                    Name = name,
+                    Color = color,
+                    FormattedRest = new MarkupString(formattedRest)
+                });
+        }
+
+        return results;
+    }
+
+
+    private class ParsedLine
+    {
+        public string Name { get; set; } = "";
+        public string Color { get; set; } = "black";
+        public MarkupString FormattedRest { get; set; }
+    }
+}

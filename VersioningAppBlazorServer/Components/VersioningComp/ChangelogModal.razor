@@ -1,0 +1,7 @@
+﻿@code {
+    [Parameter] public string? Description { get; set; }
+}
+
+<RadzenCard Style="padding: 1rem; max-height: 70vh; overflow-y: auto;">
+    <ChangelogRenderer Text="@Description" />
+</RadzenCard>

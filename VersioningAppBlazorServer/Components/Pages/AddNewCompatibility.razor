@@ -59,9 +59,9 @@
 
     private List<AppCompatibilityDTO> NewAppCompatibilities { get; set; } = [];
 
-    public IList<ApplicationDTO> ApplicationsToPickUp { get; set; } = [];
+    private IList<ApplicationDTO> ApplicationsToPickUp { get; set; } = [];
 
-    public IList<ApplicationPicked> ApplicationsPicked { get; set; } = [];
+    private IList<ApplicationPicked> ApplicationsPicked { get; set; } = [];
 
     private async Task OnChangeAppVersion(object value)
     {

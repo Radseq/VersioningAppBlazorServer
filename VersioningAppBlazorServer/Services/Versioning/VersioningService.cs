@@ -112,14 +112,31 @@ public class VersioningService : IVersioningService
                 }
             }
 
+            await databaseTransactionOperation.SaveAsync();
 
-            var previousVersionId = await repoAppVersion.MaxId(appVersion.AppId);
+            var inheritAppCompatibilitiesVersionList = new List<int>();
 
-            var getCompatibilitiesPreviousVersion = await repoAppCompatibility.GetWhereAsync(x => x.SourceVersionId == previousVersionId);
+            // inherit
+            if (doInheritCompatibilityOfPreviousVersions)
+            {
+                var previousVersionId = await repoAppVersion.MaxId(appVersion.AppId);
+
+                var getCompatibilitiesPreviousVersion = await repoAppCompatibility.GetWhereAsync(x => x.SourceVersionId == previousVersionId);
+
+                foreach (var item in getCompatibilitiesPreviousVersion)
+                {
+                    var inheritCompatibilityExistsWhileAddingNewVersion = appVersion.Compatibilities
+                        .Any(x => x.CompatibleWithVersionId == item.TargetVersionId);
+                    if (inheritCompatibilityExistsWhileAddingNewVersion)
+                        continue;
+
+                    inheritAppCompatibilitiesVersionList.Add(item.TargetVersionId);
+                }
+            }
 
             var newAppVersion = Mappers.MapToDB(appVersion);
-            newAppVersion.CompatibilitySourceVersions.Clear();
             newAppVersion.CompatibilityTargetVersions.Clear();
+            newAppVersion.CompatibilitySourceVersions.Clear();
             newAppVersion.ApplicationId = application.Id;
 
             newAppVersion = await repoAppVersion.AddOneAsync(newAppVersion);
@@ -133,23 +150,16 @@ public class VersioningService : IVersioningService
                 var comp = await repoAppCompatibility.AddOneAsync(compAdd);
             }
 
-            // inherit
-            if (doInheritCompatibilityOfPreviousVersions)
-            {
-                foreach (var item in getCompatibilitiesPreviousVersion)
-                {
-                    var inheritCompatibilityExistsWhileAddingNewVersion = appVersion.Compatibilities
-                        .Any(x => x.CompatibleWithVersionId == item.TargetVersionId);
-                    if (inheritCompatibilityExistsWhileAddingNewVersion)
-                        continue;
+            await databaseTransactionOperation.SaveAsync();
 
-                    var newCompatibility = new AppCompatibility()
-                    {
-                        SourceVersionId = newAppVersion.Id,
-                        TargetVersionId = item.TargetVersionId
-                    };
-                    var comp = await repoAppCompatibility.AddOneAsync(newCompatibility);
-                }
+            foreach (var versionId in inheritAppCompatibilitiesVersionList)
+            {
+                var newCompatibility = new AppCompatibility()
+                {
+                    SourceVersionId = newAppVersion.Id,
+                    TargetVersionId = versionId
+                };
+                var comp = await repoAppCompatibility.AddOneAsync(newCompatibility);
             }
 
             await databaseTransactionOperation.SaveAsync();

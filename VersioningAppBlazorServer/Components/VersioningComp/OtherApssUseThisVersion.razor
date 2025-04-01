@@ -36,7 +36,9 @@
                             </RadzenDataGridColumn>
                             <RadzenDataGridColumn Property="Version.Description" Title="Changelog" MinWidth="200px">
                                 <Template Context="app">
-                                    @app.Description
+                                    <RadzenButton Text="Show"
+                                                  ButtonStyle="ButtonStyle.Info"
+                                                  Click="@(args => ShowPopup(app.Description))" />
                                 </Template>
                             </RadzenDataGridColumn>
                             <RadzenDataGridColumn Title="Last 10 changelogs" MinWidth="200px">
@@ -111,5 +113,24 @@ else if (SelectedAppVersion != null && !string.IsNullOrWhiteSpace(ApplicationNam
                 VersionId = arg.Id,
                 EventType = VersionEventType.NAVIGATE
             });
+    }
+
+    private async Task ShowPopup(string? changelog)
+    {
+        if (string.IsNullOrWhiteSpace(changelog))
+        {
+            changelog = "(No changelog)";
+        }
+
+        await dialogService.OpenAsync<ChangelogModal>(
+            "Changelog",
+            new Dictionary<string, object>() { { "Description", changelog } },
+            new DialogOptions()
+                {
+                    Width = "500px",
+                    Height = "auto",
+                    ShowClose = true,
+                    CloseDialogOnOverlayClick = true
+                });
     }
 }
