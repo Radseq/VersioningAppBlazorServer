@@ -44,7 +44,7 @@
                 <Template Context="app">
                     <RadzenButton Text="Show"
                                   ButtonStyle="ButtonStyle.Info"
-                                  Click="@(args => ShowPopup(app.Description))" />
+                                  Click="@(args => ShowPopup(app.SelectedAppVersion?.Description))" />
                 </Template>
             </RadzenDataGridColumn>
             <RadzenDataGridColumn Title="Last 10 changelogs" MinWidth="200px">

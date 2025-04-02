@@ -69,6 +69,8 @@
         </RadzenStack>
         @if (selectedApp != null && selectedAppVersion != null)
         {
+            <RadzenButton Text="Show Graph" Click="()=>ShowGraph(selectedApp.Id, selectedAppVersion.Id)" />
+
             <VersioningAppBlazorServer.Components.VersioningComp.ViewAppVersion ApplicationName="@selectedApp.Name"
                                                                                 AppsViews=@CompatibleApplications
                                                                                 SelectedAppVersion=@selectedAppVersion
@@ -378,6 +380,26 @@
         {
             ErrorNotify(deleteResult.ErrorData?.Description);
         }
+    }
+
+    private async Task ShowGraph(int appId, int versionId)
+    {
+        await dialogService.OpenAsync<VersioningAppBlazorServer.Components.VersioningComp.VersionGraph>(
+            title: "",
+            new Dictionary<string, object>(){
+                {"AppId", appId },
+                { "AppVersionId", versionId}
+            },
+            options: new DialogOptions
+                {
+                    ShowTitle = false,
+                    Resizable = false,
+                    Draggable = false,
+                    Width = "auto",
+                    Height = "auto",
+                    CloseDialogOnOverlayClick = true
+                });
+
     }
 
     protected override async Task OnInitializedAsync()

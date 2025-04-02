@@ -37,11 +37,11 @@ public class RepoApplication : IRepoApplication
 
     public async Task<IEnumerable<Application>> GetAllAsync()
     {
-        return await dataContext.Applications.Include(x=>x.AppVersions).ToListAsync();
+        return await dataContext.Applications.Include(x => x.AppVersions).ThenInclude(x => x.CompatibilitySourceVersions).ToListAsync();
     }
     public async Task<Application?> GetByIdAsync(int id)
     {
-        return await dataContext.Applications.FirstOrDefaultAsync(x => x.Id == id);
+        return await dataContext.Applications.Include(x => x.AppVersions).FirstOrDefaultAsync(x => x.Id == id);
     }
     public async Task<IEnumerable<Application>> GetManyAsync(List<int> manyList)
     {

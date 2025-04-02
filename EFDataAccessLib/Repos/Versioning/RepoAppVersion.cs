@@ -51,7 +51,7 @@ public class RepoAppVersion : IRepoAppVersion
 
     public async Task<IEnumerable<AppVersion>> GetWhereAsync(Expression<Func<AppVersion, bool>> predicate)
     {
-        return await dataContext.AppVersions.Where(predicate).ToListAsync();
+        return await dataContext.AppVersions.Where(predicate).Include(x => x.Application).ToListAsync();
     }
 
     public AppVersion Modify(AppVersion entity)

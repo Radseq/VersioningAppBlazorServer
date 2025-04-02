@@ -1,0 +1,301 @@
+﻿@* @page "/version-graph/{AppId:int}/{AppVersionId:int}"
+ *@
+@inject IVersioningService VersioningService
+@inject NotificationService NotificationService
+
+<div class="custom-tooltip">
+    <div class="graph-container" style="width:@(maxX)px; height:@(maxY)px;">
+        @foreach (var version in AllVersions)
+        {
+            var pos = NodePositions[version.Id];
+            @if (version.AppId == AppId)
+            {
+                <div class="node" style="left:@(pos.X)px; top:@(pos.Y)px; border-color:red">
+                    @AppNames[version.AppId]<br />
+                    @version.Version
+                </div>
+            }
+            else
+            {
+                <div class="node" style="left:@(pos.X)px; top:@(pos.Y)px;">
+                    @AppNames[version.AppId]<br />
+                    @version.Version
+                </div>
+            }
+        }
+
+        <svg class="connections" style="width:@(maxX)px; height:@(maxY)px;">
+            @foreach (var version in AllVersions)
+            {
+                foreach (var compatibility in version.Compatibilities)
+                {
+                    if (!NodePositions.TryGetValue(compatibility.VersionId, out var from) ||
+                    !NodePositions.TryGetValue(compatibility.CompatibleWithVersionId, out var to))
+                    {
+                        continue;
+                    }
+
+                    int x1 = from.X + 50;
+                    int y1 = from.Y + 30;
+                    int x2 = to.X + 50;
+                    int y2 = to.Y + 30;
+
+                    <line x1="@x1" y1="@y1" x2="@x2" y2="@y2" />
+                }
+            }
+        </svg>
+    </div>
+</div>
+<style>
+    .graph-container {
+        position: relative;
+        width: 100vw;
+        height: 100vh;
+        border: 1px solid #ccc;
+    }
+
+    .node {
+        position: absolute;
+        background: #eef;
+        border: 2px solid #0078d7;
+        border-radius: 10px;
+        text-align: center;
+        line-height: 1.2;
+        font-weight: bold;
+        padding: 4px;
+        z-index: 1; /* ABOVE the lines */
+    }
+
+    svg.connections {
+        position: absolute;
+        width: 100vw;
+        height: 100vh;
+        top: 0;
+        left: 0;
+        z-index: 0;
+    }
+
+    svg line {
+        stroke: #0078d7;
+        stroke-width: 2;
+    }
+
+    .custom-tooltip {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background-color: white;
+        padding: 1rem;
+        border: 1px solid #ccc;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        z-index: 1000;
+        max-width: 90%; /* optional, for responsiveness */
+    }
+</style>
+
+
+@code {
+    [Parameter]
+    public int AppId { get; set; }
+    [Parameter]
+    public int AppVersionId { get; set; }
+
+    private List<ApplicationDTO> Applications { get; set; } = new();
+
+    private Dictionary<int, string> AppNames { get; set; } = new();
+    private List<AppVersionDTO> AllVersions { get; set; } = new();
+
+    private Dictionary<int, (int X, int Y)> NodePositions { get; set; } = new();
+
+    private int maxX { get; set; } = 0;
+    private int maxY { get; set; } = 0;
+
+    protected async override Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+
+        var application = await VersioningService.GetApplicationById(AppId);
+        if (application.HasFailed)
+            ErrorNotify(application.ErrorData!.Description);
+
+        var app = application.Value!;
+
+        var appVersion = app.Versions.FirstOrDefault(x => x.Id == AppVersionId);
+        if (appVersion == null)
+            ErrorNotify($"Nie znaleziono wybranej wersji dla aplikacji {app.Name}");
+
+
+        app.Versions.Clear();
+
+        var appsUsingThisVersion = await VersioningService.GetOtherAppsUsingThisVersion(AppVersionId);
+        if (appsUsingThisVersion.HasFailed)
+            ErrorNotify(appsUsingThisVersion.ErrorData!.Description);
+
+        foreach (var item in appsUsingThisVersion.Value!)
+        {
+            foreach (var ver in item.Versions)
+            {
+                ver.Compatibilities = ver.Compatibilities.Where(x => x.CompatibleWithVersionId == AppVersionId).ToList();
+            }
+        }
+
+        Applications.AddRange(appsUsingThisVersion.Value!);
+
+        var appVersionCompatibilityWith = appVersion?.Compatibilities.Select(x => x.CompatibleWithVersionId);
+
+        var compatibilityApplications = await VersioningService.GetCompatibilityApplications(AppVersionId);
+        if (compatibilityApplications.HasFailed)
+            ErrorNotify(compatibilityApplications.ErrorData!.Description);
+
+        foreach (var item in compatibilityApplications.Value!)
+        {
+            item.Versions = item.Versions.Where(x => appVersionCompatibilityWith!.Contains(x.Id)).ToList();
+            var compatibleWithVersionId = item.Versions.FirstOrDefault(x => appVersionCompatibilityWith!.Contains(x.Id));
+
+            foreach (var ver in item.Versions)
+            {
+                ver.Compatibilities.Clear();
+            }
+
+            if (compatibleWithVersionId != null)
+            {
+                var appVersionAlreadyHasCompatibility = appVersion!.Compatibilities
+                    .FirstOrDefault(x => x.CompatibleWithVersionId == compatibleWithVersionId.Id);
+                if (appVersionAlreadyHasCompatibility == null)
+                    continue;
+
+                appVersion!.Compatibilities.Add(new AppCompatibilityDTO()
+                    {
+                        CompatibleWithVersionId = compatibleWithVersionId.Id,
+                        VersionId = AppVersionId
+                    });
+            }
+        }
+
+        Applications.AddRange(compatibilityApplications.Value!);
+
+        app.Versions.Add(appVersion!);
+        Applications.Add(app);
+
+        AppNames = Applications.ToDictionary(a => a.Id, a => a.Name);
+        AllVersions = Applications.SelectMany(a => a.Versions).ToList();
+
+        GenerateNodePositions();
+
+        maxX = NodePositions.Values.Max(p => p.X) + 200;
+        maxY = NodePositions.Values.Max(p => p.Y) + 200;
+    }
+
+    private void GenerateNodePositions()
+    {
+        var appNameLengths = Applications.ToDictionary(
+            app => app.Id,
+            app => app.Name.Length
+        );
+
+        NodePositions.Clear();
+
+        var versionMap = AllVersions.ToDictionary(v => v.Id);
+
+        // 1. Build adjacency (reverse: compatible -> used by)
+        var incomingEdges = new Dictionary<int, List<int>>();
+        foreach (var version in AllVersions)
+        {
+            foreach (var comp in version.Compatibilities)
+            {
+                if (!incomingEdges.ContainsKey(comp.CompatibleWithVersionId))
+                    incomingEdges[comp.CompatibleWithVersionId] = [];
+
+                incomingEdges[comp.CompatibleWithVersionId].Add(version.Id);
+            }
+        }
+
+        // 2. Calculate levels
+        var levels = new Dictionary<int, int>();
+        void AssignLevel(int id, int depth)
+        {
+            if (levels.TryGetValue(id, out var existingDepth))
+            {
+                if (depth < existingDepth)
+                    levels[id] = depth;
+            }
+            else
+            {
+                levels[id] = depth;
+            }
+
+            if (incomingEdges.TryGetValue(id, out var children))
+            {
+                foreach (var child in children)
+                    AssignLevel(child, depth + 1);
+            }
+        }
+
+        var rootIds = AllVersions
+            .Where(v => !AllVersions.Any(other =>
+                other.Compatibilities.Any(c => c.VersionId == v.Id && c.CompatibleWithVersionId != v.Id)))
+            .Select(v => v.Id)
+            .ToList();
+
+        foreach (var root in rootIds)
+            AssignLevel(root, 0);
+
+        // 3. Group levels
+        var grouped = levels.GroupBy(kvp => kvp.Value)
+            .OrderBy(g => g.Key)
+            .ToDictionary(g => g.Key, g => g.Select(kvp => kvp.Key).ToList());
+
+        const int ySpacing = 200;
+
+        // 4. Measure level widths
+        var levelWidths = new Dictionary<int, int>();
+        var nodeWidths = new Dictionary<int, int>(); // versionId → width
+
+        foreach (var (level, ids) in grouped)
+        {
+            int levelWidth = 0;
+
+            foreach (var versionId in ids)
+            {
+                var version = versionMap[versionId];
+                int nameLength = appNameLengths.TryGetValue(version.AppId, out var len) ? len : 8;
+                int width = nameLength * 10 + 52; // base width
+                nodeWidths[versionId] = width;
+                levelWidth += width;
+            }
+
+            levelWidths[level] = levelWidth;
+        }
+
+        // 5. Find max width and center all levels based on it
+        int maxWidth = levelWidths.Values.Max();
+
+        foreach (var (level, ids) in grouped)
+        {
+            int totalWidth = levelWidths[level];
+            int startX = (maxWidth - totalWidth) / 2;
+
+            foreach (var versionId in ids)
+            {
+                int width = nodeWidths[versionId];
+                int x = startX + width / 2;
+                NodePositions[versionId] = (x, level * ySpacing);
+                startX += width;
+            }
+        }
+    }
+
+
+    private void ErrorNotify(string? error)
+    {
+        NotificationService.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Error,
+                Detail = error ?? "NO_ERROR_FIX_ME",
+                Duration = 3000
+            });
+    }
+
+}

@@ -575,4 +575,9 @@ public class VersioningService : IVersioningService
             return MessageResult<List<ApplicationDTO>>.FailureErrorNumberExtract(ErrorList._208);
         }
     }
+
+    public Task<MessageResult<IList<AppCompatibilityDTO>>> GetAllCompatibilities()
+    {
+        throw new NotImplementedException();
+    }
 }
