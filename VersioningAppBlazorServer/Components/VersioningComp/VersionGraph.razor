@@ -4,6 +4,19 @@
 @inject NotificationService NotificationService
 
 <div class="custom-tooltip">
+
+    <div class="graph-legend">
+        <svg width="100" height="40">
+            <defs>
+                <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#0078d7" />
+                </marker>
+            </defs>
+            <line x1="10" y1="20" x2="80" y2="20" stroke="#0078d7" stroke-width="2" marker-end="url(#arrowhead)" />
+        </svg>
+        <span>Flow version compatibility</span>
+    </div>
+
     <div class="graph-container" style="width:@(maxX)px; height:@(maxY)px;">
         @foreach (var app in Applications)
         {
@@ -20,14 +33,22 @@
         }
 
         <svg class="connections" style="width:@(maxX)px; height:@(maxY)px;">
+            <defs>
+                <marker id="arrowhead" markerWidth="10" markerHeight="7"
+                        refX="5" refY="3.5" orient="auto" markerUnits="strokeWidth">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#0078d7" />
+                </marker>
+
+            </defs>
+
             @foreach (var app in Applications)
             {
                 foreach (var version in app.Versions)
                 {
-                    foreach (var comp in version.Compatibilities)
+                    foreach (var compatibility in version.Compatibilities)
                     {
                         var fromAppId = version.AppId;
-                        var toVersion = AllVersions.FirstOrDefault(v => v.Id == comp.CompatibleWithVersionId);
+                        var toVersion = AllVersions.FirstOrDefault(v => v.Id == compatibility.CompatibleWithVersionId);
                         if (toVersion == null)
                             continue;
 
@@ -42,15 +63,33 @@
                         int x2 = to.X + 50;
                         int y2 = to.Y + 30;
 
-                        <line x1="@x1" y1="@y1" x2="@x2" y2="@y2" />
+                        int midX = (x1 + x2) / 2;
+                        int midY = (y1 + y2) / 2;
+
+                        // Break line into two segments so marker-mid gets triggered
+                        string path = $"M {x1},{y1} L {midX},{midY} L {x2},{y2}";
+
+                        <path d="@path" stroke="#0078d7" stroke-width="2" fill="none"
+                              marker-mid="url(#arrowhead)" />
                     }
                 }
             }
-
         </svg>
+
     </div>
 </div>
 <style>
+
+    .graph-legend {
+        margin-top: 20px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 0.9rem;
+        color: #333;
+    }
+
+
     .graph-container {
         position: relative;
         width: 100vw;
