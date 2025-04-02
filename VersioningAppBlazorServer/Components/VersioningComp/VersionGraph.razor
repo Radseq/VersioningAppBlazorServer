@@ -5,44 +5,48 @@
 
 <div class="custom-tooltip">
     <div class="graph-container" style="width:@(maxX)px; height:@(maxY)px;">
-        @foreach (var version in AllVersions)
+        @foreach (var app in Applications)
         {
-            var pos = NodePositions[version.Id];
-            @if (version.AppId == AppId)
-            {
-                <div class="node" style="left:@(pos.X)px; top:@(pos.Y)px; border-color:red">
-                    @AppNames[version.AppId]<br />
-                    @version.Version
-                </div>
-            }
-            else
-            {
-                <div class="node" style="left:@(pos.X)px; top:@(pos.Y)px;">
-                    @AppNames[version.AppId]<br />
-                    @version.Version
-                </div>
-            }
+            if (!NodePositions.TryGetValue(app.Id, out var pos))
+                continue;
+
+            <div class="node" style="left:@(pos.X)px; top:@(pos.Y)px; @(app.Id == AppId ? "border-color:red" : "")">
+                <strong>@app.Name</strong><br />
+                @foreach (var version in app.Versions.OrderByDescending(v => v.Major).ThenByDescending(v => v.Minor).ThenByDescending(v => v.Patch))
+                {
+                    <div>@version.Version</div>
+                }
+            </div>
         }
 
         <svg class="connections" style="width:@(maxX)px; height:@(maxY)px;">
-            @foreach (var version in AllVersions)
+            @foreach (var app in Applications)
             {
-                foreach (var compatibility in version.Compatibilities)
+                foreach (var version in app.Versions)
                 {
-                    if (!NodePositions.TryGetValue(compatibility.VersionId, out var from) ||
-                    !NodePositions.TryGetValue(compatibility.CompatibleWithVersionId, out var to))
+                    foreach (var comp in version.Compatibilities)
                     {
-                        continue;
+                        var fromAppId = version.AppId;
+                        var toVersion = AllVersions.FirstOrDefault(v => v.Id == comp.CompatibleWithVersionId);
+                        if (toVersion == null)
+                            continue;
+
+                        var toAppId = toVersion.AppId;
+
+                        if (!NodePositions.TryGetValue(fromAppId, out var from) ||
+                        !NodePositions.TryGetValue(toAppId, out var to))
+                            continue;
+
+                        int x1 = from.X + 50;
+                        int y1 = from.Y + 30;
+                        int x2 = to.X + 50;
+                        int y2 = to.Y + 30;
+
+                        <line x1="@x1" y1="@y1" x2="@x2" y2="@y2" />
                     }
-
-                    int x1 = from.X + 50;
-                    int y1 = from.Y + 30;
-                    int x2 = to.X + 50;
-                    int y2 = to.Y + 30;
-
-                    <line x1="@x1" y1="@y1" x2="@x2" y2="@y2" />
                 }
             }
+
         </svg>
     </div>
 </div>
@@ -190,6 +194,7 @@
 
     private void GenerateNodePositions()
     {
+        // Get name lengths to estimate width
         var appNameLengths = Applications.ToDictionary(
             app => app.Id,
             app => app.Name.Length
@@ -197,11 +202,12 @@
 
         NodePositions.Clear();
 
-        var versionMap = AllVersions.ToDictionary(v => v.Id);
+        var allVersions = Applications.SelectMany(a => a.Versions).ToList();
+        var versionMap = allVersions.ToDictionary(v => v.Id);
 
-        // 1. Build adjacency (reverse: compatible -> used by)
+        // 1. Build adjacency: compatible -> users
         var incomingEdges = new Dictionary<int, List<int>>();
-        foreach (var version in AllVersions)
+        foreach (var version in allVersions)
         {
             foreach (var comp in version.Compatibilities)
             {
@@ -212,29 +218,30 @@
             }
         }
 
-        // 2. Calculate levels
+        // 2. Calculate levels (per-version)
         var levels = new Dictionary<int, int>();
-        void AssignLevel(int id, int depth)
+
+        void AssignLevel(int versionId, int depth)
         {
-            if (levels.TryGetValue(id, out var existingDepth))
+            if (levels.TryGetValue(versionId, out var existingDepth))
             {
                 if (depth < existingDepth)
-                    levels[id] = depth;
+                    levels[versionId] = depth;
             }
             else
             {
-                levels[id] = depth;
+                levels[versionId] = depth;
             }
 
-            if (incomingEdges.TryGetValue(id, out var children))
+            if (incomingEdges.TryGetValue(versionId, out var children))
             {
                 foreach (var child in children)
                     AssignLevel(child, depth + 1);
             }
         }
 
-        var rootIds = AllVersions
-            .Where(v => !AllVersions.Any(other =>
+        var rootIds = allVersions
+            .Where(v => !allVersions.Any(other =>
                 other.Compatibilities.Any(c => c.VersionId == v.Id && c.CompatibleWithVersionId != v.Id)))
             .Select(v => v.Id)
             .ToList();
@@ -242,51 +249,58 @@
         foreach (var root in rootIds)
             AssignLevel(root, 0);
 
-        // 3. Group levels
-        var grouped = levels.GroupBy(kvp => kvp.Value)
+        // 3. Map ApplicationId → Level (max of all its versions)
+        var appLevels = new Dictionary<int, int>();
+        foreach (var app in Applications)
+        {
+            var versionLevels = app.Versions.Select(v => levels.TryGetValue(v.Id, out var l) ? l : 0);
+            appLevels[app.Id] = versionLevels.Max(); // deepest version determines app level
+        }
+
+        // 4. Group by level
+        var grouped = appLevels
+            .GroupBy(kvp => kvp.Value)
             .OrderBy(g => g.Key)
             .ToDictionary(g => g.Key, g => g.Select(kvp => kvp.Key).ToList());
 
         const int ySpacing = 200;
 
-        // 4. Measure level widths
+        // 5. Measure widths
         var levelWidths = new Dictionary<int, int>();
-        var nodeWidths = new Dictionary<int, int>(); // versionId → width
+        var nodeWidths = new Dictionary<int, int>(); // AppId → width
 
-        foreach (var (level, ids) in grouped)
+        foreach (var (level, appIds) in grouped)
         {
             int levelWidth = 0;
 
-            foreach (var versionId in ids)
+            foreach (var appId in appIds)
             {
-                var version = versionMap[versionId];
-                int nameLength = appNameLengths.TryGetValue(version.AppId, out var len) ? len : 8;
-                int width = nameLength * 10 + 52; // base width
-                nodeWidths[versionId] = width;
+                int nameLength = appNameLengths.TryGetValue(appId, out var len) ? len : 8;
+                int width = nameLength * 10 + 52;
+                nodeWidths[appId] = width;
                 levelWidth += width;
             }
 
             levelWidths[level] = levelWidth;
         }
 
-        // 5. Find max width and center all levels based on it
+        // 6. Positioning: center each level based on max width
         int maxWidth = levelWidths.Values.Max();
 
-        foreach (var (level, ids) in grouped)
+        foreach (var (level, appIds) in grouped)
         {
             int totalWidth = levelWidths[level];
             int startX = (maxWidth - totalWidth) / 2;
 
-            foreach (var versionId in ids)
+            foreach (var appId in appIds)
             {
-                int width = nodeWidths[versionId];
+                int width = nodeWidths[appId];
                 int x = startX + width / 2;
-                NodePositions[versionId] = (x, level * ySpacing);
+                NodePositions[appId] = (x, level * ySpacing);
                 startX += width;
             }
         }
     }
-
 
     private void ErrorNotify(string? error)
     {
