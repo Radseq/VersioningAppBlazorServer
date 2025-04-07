@@ -46,7 +46,7 @@ public class RepoAppVersion : IRepoAppVersion
     }
     public async Task<IEnumerable<AppVersion>> GetManyAsync(List<int> manyList)
     {
-        return await dataContext.AppVersions.Where(i => manyList.Contains(i.Id)).ToListAsync();
+        return await dataContext.AppVersions.Include(x => x.Application).Where(i => manyList.Contains(i.Id)).ToListAsync();
     }
 
     public async Task<IEnumerable<AppVersion>> GetWhereAsync(Expression<Func<AppVersion, bool>> predicate)

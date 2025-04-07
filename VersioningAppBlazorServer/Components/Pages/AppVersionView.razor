@@ -12,10 +12,10 @@
         @if (selectedApp != null && selectedAppVersion != null)
         {
             <VersioningAppBlazorServer.Components.VersioningComp.ViewAppVersion ApplicationName="@selectedApp.Name"
-                                                                    AppsViews=@CompatibleApplications
-                                                                    SelectedAppVersion=@selectedAppVersion
-                                                                    OnProcessVersionEvent="OnProcessVersionEvent"
-                                                                    @key="selectedAppVersion.Id" />
+                                                                                AppsViews=@CompatibleApplications
+                                                                                SelectedAppVersion=@selectedAppVersion
+                                                                                OnProcessVersionEvent="OnProcessVersionEvent"
+                                                                                @key="selectedAppVersion.Id" />
         }
     </Body>
 </PageBody>
@@ -61,9 +61,12 @@
         if (!oldVersionId.HasValue || !newVersionId.HasValue)
             ErrorNotify("No old version available for compatibility change.");
 
-        var result = await VersioningService.UpgradeApplicationVersionCompatibility(appId, oldVersionId!.Value, newVersionId!.Value);
+        var result = await VersioningService.UpgradeApplicationVersionCompatibility(appId, selectedAppVersion!.Id, oldVersionId!.Value, newVersionId!.Value);
         if (result.HasFailed)
+        {
             ErrorNotify(result.ErrorData?.Description);
+            return;
+        }
 
         foreach (var item in selectedAppVersion?.Compatibilities ?? [])
         {

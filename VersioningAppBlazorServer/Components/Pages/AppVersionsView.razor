@@ -62,7 +62,6 @@
                               Variant="Variant.Flat" Click="()=>DeleteAppVersionButtonClick(selectedAppVersion.Id)" />
                 <RadzenCheckBox @bind-Value=@IsProduction Name="IsProductionVersionCheckBox" TValue="bool"
                                 Change="(arg)=>SetProductionVersion(arg)" />
-                <RadzenCheckBox @bind-Value=@selectedAppVersion.IsProduction Name="IsProductionVersionCheckBox" TValue="bool" Change="(arg)=>SetProductionVersion(arg)" />
                 <RadzenLabel Text="Is production version(old versions will set to false)"
                              Component="IsProductionVersionCheckBox" class="rz-ms-2" />
             }
@@ -224,9 +223,12 @@
             if (!confirm)
                 return;
         }
-        var result = await VersioningService.UpgradeApplicationVersionCompatibility(appId, oldVersionId!.Value, newVersionId!.Value);
+        var result = await VersioningService.UpgradeApplicationVersionCompatibility(appId, selectedAppVersion!.Id, oldVersionId!.Value, newVersionId!.Value);
         if (result.HasFailed)
+        {
             ErrorNotify(result.ErrorData?.Description);
+            return;
+        }
 
         foreach (var item in selectedAppVersion?.Compatibilities ?? [])
         {
@@ -389,7 +391,7 @@
             new Dictionary<string, object>(){
                 {"AppId", appId },
                 { "AppVersionId", versionId}
-            },
+                    },
             options: new DialogOptions
                 {
                     ShowTitle = false,

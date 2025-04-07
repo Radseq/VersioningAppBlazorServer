@@ -123,14 +123,16 @@ public class VersioningService : IVersioningService
 
                 var getCompatibilitiesPreviousVersion = await repoAppCompatibility.GetWhereAsync(x => x.SourceVersionId == previousVersionId);
 
+                var toAddCompatibilities = appVersion.Compatibilities.Select(x => x.CompatibleWithVersionId).ToList();
+
+                var toAddCompatibilitiesVersions = await repoAppVersion.GetManyAsync(toAddCompatibilities);
+                var toAddCompatibilitiesApps = toAddCompatibilitiesVersions.Select(x => x.Application);
+
                 foreach (var item in getCompatibilitiesPreviousVersion)
                 {
-                    var inheritCompatibilityExistsWhileAddingNewVersion = appVersion.Compatibilities
-                        .Any(x => x.CompatibleWithVersionId == item.TargetVersionId);
-                    if (inheritCompatibilityExistsWhileAddingNewVersion)
-                        continue;
-
-                    inheritAppCompatibilitiesVersionList.Add(item.TargetVersionId);
+                    var toCompatibilityVersions = toAddCompatibilitiesApps.FirstOrDefault(x => x.Id == item.TargetVersion.ApplicationId);
+                    if (toCompatibilityVersions == null)
+                        inheritAppCompatibilitiesVersionList.Add(item.TargetVersionId);
                 }
             }
 
@@ -426,27 +428,43 @@ public class VersioningService : IVersioningService
         }
     }
 
-    public async Task<MessageResult> UpgradeApplicationVersionCompatibility(int appId, int oldVersionId, int newVersionId)
+    public async Task<MessageResult> UpgradeApplicationVersionCompatibility(int appId, int sourceAppVersionId, int oldVersionId, int newVersionId)
     {
         try
         {
+            var app = await repoApplication.GetByIdAsync(appId);
+            if (app == null)
+                return MessageResult.FailureErrorNumberExtract(ErrorList._202);
+
+            var oldAppVersionCompatibilities = await repoAppCompatibility.GetWhereAsync(x => x.SourceVersionId == sourceAppVersionId);
+
             var applicationVersionOld = await repoAppVersion.FirstOrDefaultAsync(x => x.ApplicationId == appId && x.Id == oldVersionId);
             if (applicationVersionOld == null)
                 return MessageResult.FailureErrorNumberExtract(ErrorList._405);
 
-            var applicationVersionNew = await repoAppVersion.GetByIdAsync(newVersionId);
+            var applicationVersionNew = await repoAppVersion.FirstOrDefaultAsync(x => x.ApplicationId == appId && x.Id == newVersionId);
             if (applicationVersionNew == null)
                 return MessageResult.FailureErrorNumberExtract(ErrorList._406);
 
-            var oldAppVersionCompatibility = applicationVersionOld.CompatibilityTargetVersions
-                .FirstOrDefault(x => x.TargetVersionId == oldVersionId);
-            if (oldAppVersionCompatibility != null)
+            await databaseTransactionOperation.StartAsync();
+
+            foreach (var item in oldAppVersionCompatibilities)
             {
-                oldAppVersionCompatibility.TargetVersionId = newVersionId;
-                repoAppCompatibility.Modify(oldAppVersionCompatibility);
+                var targetVersionId = app.AppVersions.FirstOrDefault(x => x.Id == item.TargetVersionId);
+                if (targetVersionId != null)
+                    repoAppCompatibility.Remove(item);
             }
+            await databaseTransactionOperation.SaveAsync();
+
+            await repoAppCompatibility.AddOneAsync(new AppCompatibility()
+            {
+                SourceVersionId = sourceAppVersionId,
+                TargetVersionId = newVersionId
+            });
 
             await databaseTransactionOperation.SaveAsync();
+
+            await databaseTransactionOperation.EndAsync();
 
             return MessageResult.Success();
         }
