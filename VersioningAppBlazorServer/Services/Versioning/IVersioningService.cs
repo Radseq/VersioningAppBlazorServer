@@ -15,7 +15,6 @@ public interface IVersioningService
     Task<MessageResult<IList<ApplicationDTO>>> GetCompatibilityApplications(int appVersionId);
     Task<MessageResult<AppVersionDTO>> GetAppVersion(int appVersionId);
     Task<MessageResult<IList<ApplicationDTO>>> GetAllApplications();
-    Task<MessageResult<IList<AppCompatibilityDTO>>> GetAllCompatibilities();
     Task<MessageResult<IList<AppCompatibilityDTO>>> GetVersionCompatibilities(int appVersionId);
     Task<MessageResult> DeleteAppCompatibility(int appVersionId, int appVersionIdToDelete);
     Task<MessageResult> DeleteApplication(int appId);

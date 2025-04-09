@@ -36,12 +36,23 @@
     private int NewMinor { get; set; } = 0;
     private int NewPatch { get; set; } = 0;
 
+    private bool _initialized = false;
+
+    public (int Major, int Minor, int Patch) GetSelectedVersion()
+    {
+        return (Major, Minor, Patch);
+    }
+
     protected override void OnInitialized()
     {
         base.OnInitialized();
-        Major = MajorMin;
-        Minor = MinorMin;
-        Patch = PatchMin;
+        if (!_initialized)
+        {
+            Major = MajorMin;
+            Minor = MinorMin;
+            Patch = PatchMin;
+            _initialized = true;
+        }
     }
 
     private void HandleMajorVersionChange()

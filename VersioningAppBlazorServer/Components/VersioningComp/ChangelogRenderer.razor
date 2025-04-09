@@ -24,13 +24,14 @@
 @code {
     [Parameter] public string? Text { get; set; }
 
-    private List<ChangelogToken> Tokens { get; set; } = new();
+    private List<ChangelogToken>? Tokens { get; set; }
 
     private List<ParsedLine> lines = new();
 
     protected override void OnParametersSet()
     {
-        lines = ParseChangelog(Text ?? "", Tokens);
+        if (Tokens != null)
+            lines = ParseChangelog(Text ?? "", Tokens);
     }
 
     protected override void OnInitialized()

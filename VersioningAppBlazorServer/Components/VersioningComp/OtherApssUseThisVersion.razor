@@ -29,7 +29,7 @@
                     <RadzenDataGrid AllowFiltering="true" AllowPaging="true" AllowSorting="true" Data="@(SelectedApplication?.FirstOrDefault()?.Versions)">
                         <Columns>
                             <RadzenDataGridColumn Property="Version" Title="Version" />
-                            <RadzenDataGridColumn Property="Version" Title="Przejdź">
+                            <RadzenDataGridColumn Property="Version" Title="Go to">
                                 <Template Context="app">
                                     <RadzenButton Icon="login" ButtonStyle="ButtonStyle.Primary" Click="@(args => OnNavigateToViewBtnClick(app))" />
                                 </Template>

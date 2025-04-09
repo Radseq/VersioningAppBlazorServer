@@ -1,5 +1,7 @@
 ﻿<RadzenRow>
-    <RadzenCheckBox @bind-Value=@NewAppVersion.IsProduction Name="IsProductionVersionCheckBox" TValue="bool" />
+    <RadzenCheckBox Value="@NewAppVersion.IsProduction"
+                    ValueChanged="@(v => NewAppVersion.IsProduction = v)"
+                    Name="IsProductionVersionCheckBox" TValue="bool" />
     <RadzenLabel Text="Is production version(old versions will set to false)"
                  Component="IsProductionVersionCheckBox" class="rz-ms-2" />
 </RadzenRow>
@@ -7,16 +9,15 @@
 <VersioningAppBlazorServer.Components.VersioningComp.VersionNumeric MajorMin="MinMajor"
                                                                     MinorMin="MinMinor"
                                                                     PatchMin="MinPatch"
-                                                                    OnNumericMajorSet="@HandleMajorVersionChange"
-                                                                    OnNumericMinorSet="@HandleMinorVersionChange"
-                                                                    OnNumericPatchSet="@HandlePatchVersionChange"
-                                                                    @key="@NewAppVersion.AppId" />
+                                                                    @ref="VersionNumericRef" />
 
 <RadzenRow>
     <RadzenColumn Size="12" SizeMD="12" SizeLG="5">
         <RadzenCard>
             <RadzenText TextStyle="TextStyle.Subtitle2" TagName="TagName.H3">Give changelog</RadzenText>
-            <RadzenTextArea @bind-Value=@NewAppVersion.Description
+            <RadzenTextArea Value="@NewAppVersion.Description"
+                            ValueChanged="@(v => NewAppVersion.Description = v)"
+                            ValueExpression="@(() => NewAppVersion.Description)"
                             @oninput="@(args => NewAppVersion.Description = $"{args.Value}")"
                             MaxLength="@maxLength" Style="width: 100%" aria-label="changelog here" />
             <span style="font-style: italic;">@($"{NewAppVersion.Description.Length}/{maxLength}")</span>
@@ -42,10 +43,19 @@
 
     private const int maxLength = 2000;
 
+    private VersioningAppBlazorServer.Components.VersioningComp.VersionNumeric? VersionNumericRef;
+
     private AppVersionDTO NewAppVersion { get; set; } = new();
 
     public AppVersionDTO GetVersionDTO()
     {
+        var version = VersionNumericRef?.GetSelectedVersion();
+        if (version is not null)
+        {
+            NewAppVersion.Major = version.Value.Major;
+            NewAppVersion.Minor = version.Value.Minor;
+            NewAppVersion.Patch = version.Value.Patch;
+        }
         return Copies.Copy(NewAppVersion);
     }
 

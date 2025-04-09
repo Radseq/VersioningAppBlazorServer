@@ -528,7 +528,7 @@ public class VersioningService : IVersioningService
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Can't get last changelogs app id = {appId}, up to verion Id = {versionId}", appId, versionId);
+            logger.LogError(ex, "Can't get last changelogs app id = {appId}, up to version Id = {versionId}", appId, versionId);
             return MessageResult<IList<ViewChangelog>>.FailureErrorNumberExtract(ErrorList._305);
         }
     }
@@ -592,10 +592,5 @@ public class VersioningService : IVersioningService
             logger.LogError(ex, "Can't get other applications using this version, version Id = {versionId}", versionId);
             return MessageResult<List<ApplicationDTO>>.FailureErrorNumberExtract(ErrorList._208);
         }
-    }
-
-    public Task<MessageResult<IList<AppCompatibilityDTO>>> GetAllCompatibilities()
-    {
-        throw new NotImplementedException();
     }
 }
