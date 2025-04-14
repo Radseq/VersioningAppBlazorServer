@@ -100,12 +100,39 @@
 
     private bool IsProduction { get; set; } = false;
 
+    private bool ValidateSetProdVersion()
+    {
+        foreach (var compApps in CompatibleApplications)
+        {
+            foreach (var ver in compApps.Versions)
+            {
+                var selectedVerCompatibleWith = selectedAppVersion?.Compatibilities.FirstOrDefault(x => x.CompatibleWithVersionId == ver.Id);
+                if (selectedVerCompatibleWith != null && !ver.IsProduction)
+                {
+                    ErrorNotify($"Application {compApps.Name} version {ver.Version} are not production,"
+                       + $" first set production to application {compApps.Name} version {ver.Version}", 15000);
+
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
     private async Task SetProductionVersion(bool value)
     {
-        if (selectedAppVersion != null)
+        if (selectedAppVersion == null)
+            return;
+
+        if (value)
         {
-            IsProduction = selectedAppVersion.IsProduction;
+            IsProduction = ValidateSetProdVersion();
+            if (!IsProduction)
+                return;
         }
+
+        //IsProduction = selectedAppVersion.IsProduction;
+        IsProduction = value;
 
         var confirm = await ConfirmYesNo($"Are you sure you want to assign/remove the production flag for version " +
         $"{selectedAppVersion?.Version} of application {selectedApp?.Name}? The previous version with this flag set will be changed to false.");
@@ -391,7 +418,7 @@
             new Dictionary<string, object>(){
                 {"AppId", appId },
                 { "AppVersionId", versionId}
-                    },
+                                                                        },
             options: new DialogOptions
                 {
                     ShowTitle = false,
@@ -426,13 +453,13 @@
         return null;
     }
 
-    private void ErrorNotify(string? error)
+    private void ErrorNotify(string? error, int duration = 3000)
     {
         NotificationService.Notify(new NotificationMessage
             {
                 Severity = NotificationSeverity.Error,
                 Detail = error ?? "NO_ERROR_FIX_ME",
-                Duration = 3000
+                Duration = duration
             });
     }
 
