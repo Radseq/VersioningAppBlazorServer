@@ -6,7 +6,7 @@ public class DatabaseTransactionOperation : IDatabaseTransactionOperation, IAsyn
 {
     private readonly ProgDbContext dbContext;
     private IDbContextTransaction? dbContextTransaction = null;
-    private bool IsCommiting = false;
+    private bool IsCommitting = false;
 
     public DatabaseTransactionOperation(ProgDbContext _dbContext)
     {
@@ -25,7 +25,7 @@ public class DatabaseTransactionOperation : IDatabaseTransactionOperation, IAsyn
             else
             {
                 dbContextTransaction = await dbContext.Database.BeginTransactionAsync();
-                IsCommiting = true;
+                IsCommitting = true;
                 return true;
             }
         }
@@ -43,7 +43,8 @@ public class DatabaseTransactionOperation : IDatabaseTransactionOperation, IAsyn
         {
             await SaveAsync();
             await dbContextTransaction.CommitAsync();
-            IsCommiting = false;
+            IsCommitting = false;
+            dbContextTransaction = null;
         }
     }
 
@@ -59,7 +60,7 @@ public class DatabaseTransactionOperation : IDatabaseTransactionOperation, IAsyn
             else
             {
                 dbContextTransaction = dbContext.Database.BeginTransaction();
-                IsCommiting = true;
+                IsCommitting = true;
             }
         }
     }
@@ -71,11 +72,12 @@ public class DatabaseTransactionOperation : IDatabaseTransactionOperation, IAsyn
 
     public void End()
     {
-        if (dbContextTransaction != null && IsCommiting)
+        if (dbContextTransaction != null && IsCommitting)
         {
             Save();
             dbContextTransaction.Commit();
-            IsCommiting = false;
+            IsCommitting = false;
+            dbContextTransaction = null;
         }
     }
 
@@ -83,10 +85,11 @@ public class DatabaseTransactionOperation : IDatabaseTransactionOperation, IAsyn
     {
         if (dbContextTransaction != null)
         {
-            if (IsCommiting)
+            if (IsCommitting)
                 await dbContextTransaction.RollbackAsync();
 
             await dbContextTransaction.DisposeAsync();
+            dbContextTransaction = null;
         }
 
         // Suppress finalization.
@@ -97,10 +100,11 @@ public class DatabaseTransactionOperation : IDatabaseTransactionOperation, IAsyn
     {
         if (dbContextTransaction != null)
         {
-            if (IsCommiting)
+            if (IsCommitting)
                 dbContextTransaction?.Rollback();
 
             dbContextTransaction?.Dispose();
+            dbContextTransaction = null;
         }
         GC.SuppressFinalize(this);
     }
@@ -110,7 +114,8 @@ public class DatabaseTransactionOperation : IDatabaseTransactionOperation, IAsyn
         if (dbContextTransaction != null)
         {
             await dbContextTransaction.RollbackAsync();
-            IsCommiting = false;
+            IsCommitting = false;
+            dbContextTransaction = null;
         }
     }
 
@@ -119,7 +124,8 @@ public class DatabaseTransactionOperation : IDatabaseTransactionOperation, IAsyn
         if (dbContextTransaction != null)
         {
             dbContextTransaction.Rollback();
-            IsCommiting = false;
+            IsCommitting = false;
+            dbContextTransaction = null;
         }
     }
 }
