@@ -55,7 +55,7 @@
             string rest = rawLine;
             string color = "black";
 
-            var match = Regex.Match(rawLine, @"^(#?\w+):?\s*(.*)", RegexOptions.IgnoreCase);
+            var match = Regex.Match(rawLine, @"^(#?[\w-]+):?\s*(.*)", RegexOptions.IgnoreCase);
             if (match.Success)
             {
                 var candidate = match.Groups[1].Value.ToLower();
