@@ -13,7 +13,7 @@
             <RadzenLabel Text="Select Application" Component="DropDownSelectApp" />
             <RadzenDropDown @bind-Value=@selectedAppIdDummy Change="@(args => OnChangeApp(args))"
                             Data=@ApplicationNames
-                            AllowFiltering="true"
+                            AllowFiltering="true" FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
                             TextProperty="@nameof(DropDownItem.Value)"
                             ValueProperty="@nameof(DropDownItem.Id)" Style="width: 100%; max-width: 400px;" Name="DropDownSelectApp" />
 
