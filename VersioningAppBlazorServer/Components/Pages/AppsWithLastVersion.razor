@@ -1,0 +1,86 @@
+﻿@page "/AppsList"
+
+@inject IVersioningService VersioningService
+@inject NotificationService NotificationService
+@inject DialogService dialogService
+@inject NavigationManager Navigation
+
+@rendermode InteractiveServer
+
+<PageBody>
+    <Body>
+        <RadzenRow>
+            <RadzenColumn Size="12">
+
+                <RadzenDataGrid Data="@Applications" AllowVirtualization="true"
+                                AllowFiltering="true" FilterPopupRenderMode="PopupRenderMode.OnDemand"
+                                FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
+                                LogicalFilterOperator="LogicalFilterOperator.Or"
+                                TItem="ApplicationDTO"
+                                AllowSorting="true" ColumnWidth="100px">
+                    <Columns>
+                        <RadzenDataGridColumn Property="@nameof(ApplicationDTO.Name)" Title="Name" MinWidth="170px">
+                            <Template Context="ApplicationDTO">
+                                @ApplicationDTO.Name
+                            </Template>
+                        </RadzenDataGridColumn>
+                        <RadzenDataGridColumn Property="@nameof(ApplicationDTO.Description)" Title="Description" MinWidth="170px">
+                            <Template Context="ApplicationDTO">
+                                @ApplicationDTO.Description
+                            </Template>
+                        </RadzenDataGridColumn>
+                        <RadzenDataGridColumn Title="Last Version" MinWidth="170px">
+                            <Template Context="app">
+                                @{
+                                    var lastVersion = app.Versions.LastOrDefault();
+                                }
+                                @if (lastVersion != null)
+                                {
+                                    <RadzenButton Text="@lastVersion.Version" Click="@(() => NavigateToVersion(lastVersion))" />
+                                }
+                            </Template>
+                        </RadzenDataGridColumn>
+
+                        <RadzenDataGridColumn Title="Production Version" MinWidth="170px">
+                            <Template Context="app">
+                                @{
+                                    var prodVersion = app.Versions.FirstOrDefault(x => x.IsProduction);
+                                }
+                                @if (prodVersion != null)
+                                {
+                                    <RadzenButton Text="@prodVersion.Version" Click="@(() => NavigateToVersion(prodVersion))" />
+                                }
+                            </Template>
+                        </RadzenDataGridColumn>
+                    </Columns>
+                </RadzenDataGrid>
+            </RadzenColumn>
+        </RadzenRow>
+    </Body>
+</PageBody>
+
+@code {
+    private List<ApplicationDTO> Applications { get; set; } = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var applications = await VersioningService.GetAllApplications();
+        if (applications.IsSuccess)
+            Applications = applications.Value?.ToList() ?? [];
+        else
+        {
+            NotificationService.Notify(new NotificationMessage
+                {
+                    Severity = NotificationSeverity.Error,
+                    Detail = applications.ErrorData?.Description ?? "Unknown error",
+                    Duration = 5000
+                });
+        }
+        await base.OnInitializedAsync();
+    }
+
+    private void NavigateToVersion(AppVersionDTO versionDto)
+    {
+        Navigation.NavigateTo($"AppVersionView/{versionDto.AppId}/{versionDto.Id}");
+    }
+}

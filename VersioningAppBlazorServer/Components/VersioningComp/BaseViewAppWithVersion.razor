@@ -1,0 +1,281 @@
+﻿@inject NavigationManager Navigation
+@inject IVersioningService VersioningService
+@inject NotificationService NotificationService
+@inject DialogService dialogService
+
+@if (selectedApp != null && selectedAppVersion != null)
+{
+    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center"
+                 JustifyContent="JustifyContent.Center" Gap="0.5rem" class="rz-pb-md-4 rz-pb-sm-2">
+        <RadzenButton ButtonStyle="ButtonStyle.Danger" Text="Delete application"
+                      Variant="Variant.Flat" Click="()=>DeleteAppButtonClick(selectedApp)" />
+        <RadzenButton ButtonStyle="ButtonStyle.Danger" Text="Delete selected version"
+                      Variant="Variant.Flat" Click="()=>DeleteAppVersionButtonClick(selectedApp, selectedAppVersion)" />
+        <RadzenCheckBox @bind-Value=@IsProduction Name="IsProductionVersionCheckBox" TValue="bool"
+                        Change="(arg)=>SetProductionVersion(arg)" />
+        <RadzenLabel Text="Is production version(old versions will set to false)"
+                     Component="IsProductionVersionCheckBox" class="rz-ms-2" />
+    </RadzenStack>
+
+    <RadzenButton Text="Show Graph" Click="()=>ShowGraph(selectedApp.Id, selectedAppVersion.Id)" />
+
+    <VersioningAppBlazorServer.Components.VersioningComp.ViewAppVersion ApplicationName="@selectedApp.Name"
+                                                                        AppsViews=@CompatibleApplications
+                                                                        SelectedAppVersion=@selectedAppVersion
+                                                                        OnProcessVersionEvent="OnProcessVersionEvent" />
+
+    @if (AppsUsingThisVersion.Count > 0)
+    {
+        <VersioningAppBlazorServer.Components.VersioningComp.OtherApssUseThisVersion ApplicationName="@selectedApp.Name"
+                                                                                     AppsViews=@AppsUsingThisVersion
+                                                                                     SelectedAppVersion=@selectedAppVersion
+                                                                                     OnProcessVersionEvent="OnProcessVersionEvent" />
+    }
+}
+
+@code {
+    [Parameter]
+    public int AppId { get; set; }
+    [Parameter]
+    public int AppVersionId { get; set; }
+
+    [Parameter]
+    public EventCallback<ApplicationDTO> DeleteApp { get; set; }
+    [Parameter]
+    public EventCallback<DeleteAppVersion> DeleteAppVersion { get; set; }
+
+    private bool IsProduction { get; set; } = false;
+
+    private IList<ApplicationView> CompatibleApplications { get; set; } = [];
+
+    private List<ApplicationView> AppsUsingThisVersion { get; set; } = [];
+
+    private ApplicationDTO? selectedApp;
+    private AppVersionDTO? selectedAppVersion;
+
+    private async Task OnProcessVersionEvent(VersionEvent versionEvent)
+    {
+        switch (versionEvent.EventType)
+        {
+            case VersionEventType.UPGRADE:
+                await UpgradeApplicationVersionCompatibility(versionEvent.AppId, versionEvent.OldVersionId, versionEvent.VersionId);
+                break;
+            case VersionEventType.DOWNGRADE:
+                await UpgradeApplicationVersionCompatibility(versionEvent.AppId, versionEvent.OldVersionId, versionEvent.VersionId);
+                break;
+            case VersionEventType.NAVIGATE:
+                Navigation.NavigateTo($"AppVersionView/{versionEvent.AppId}/{versionEvent.VersionId}");
+                break;
+            case VersionEventType.DELETE_COMPATIBILITY:
+                await OnAppCompatibilityDelete(selectedAppVersion!.Id, versionEvent.OldVersionId!.Value);
+                break;
+            case VersionEventType.SHOW_CHANGELOGS:
+                await OnShowLastChangelogs(versionEvent.AppId, versionEvent.VersionId);
+                break;
+            default:
+                ErrorNotify("Error while processing the click on the table.");
+                break;
+        }
+    }
+
+    private async Task UpgradeApplicationVersionCompatibility(int appId, int? oldVersionId, int? newVersionId)
+    {
+        if (!oldVersionId.HasValue || !newVersionId.HasValue)
+            ErrorNotify("No old version available for compatibility change.");
+
+        var result = await VersioningService.UpgradeApplicationVersionCompatibility(appId, selectedAppVersion!.Id, oldVersionId!.Value, newVersionId!.Value);
+        if (result.HasFailed)
+        {
+            ErrorNotify(result.ErrorData?.Description);
+            return;
+        }
+
+        foreach (var item in selectedAppVersion?.Compatibilities ?? [])
+        {
+            if (item.CompatibleWithVersionId == oldVersionId!.Value)
+            {
+                item.CompatibleWithVersionId = newVersionId!.Value;
+            }
+        }
+
+        var compatibleApps = await VersioningService.GetCompatibilityApplications(selectedAppVersion!.Id);
+        if (compatibleApps.IsSuccess)
+            CompatibleApplications = compatibleApps.Value?.ToList().ConvertAll(Mappers.MapApplication_to_ApplicationView) ?? [];
+        else
+            ErrorNotify(compatibleApps.ErrorData?.Description);
+
+        //StateHasChanged();
+    }
+
+    private async Task OnAppCompatibilityDelete(int appId, int versionId)
+    {
+        var deleteResult = await VersioningService.DeleteAppCompatibility(appId, versionId);
+        if (deleteResult.HasFailed)
+            ErrorNotify(deleteResult.ErrorData?.Description);
+
+        var compatibleApps = await VersioningService.GetCompatibilityApplications(selectedAppVersion!.Id);
+        if (compatibleApps.IsSuccess)
+            CompatibleApplications = compatibleApps.Value?.ToList().ConvertAll(Mappers.MapApplication_to_ApplicationView) ?? [];
+        else
+            ErrorNotify(compatibleApps.ErrorData?.Description);
+
+        StateHasChanged();
+    }
+
+    private async Task OnShowLastChangelogs(int appId, int versionId)
+    {
+        var changelogs = await VersioningService.LoadLastChangelogs(appId, versionId);
+        if (changelogs.HasFailed)
+        {
+            ErrorNotify(changelogs.ErrorData?.Description);
+            return;
+        }
+
+        await dialogService.OpenSideAsync<VersioningComp.ShowLastChangelogs>("Last Changelogs",
+            new Dictionary<string, object>() { { "ChangeLogs", changelogs.Value ?? [] } },
+            options: new SideDialogOptions { CloseDialogOnOverlayClick = true, Position = DialogPosition.Right, ShowMask = true });
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var app = await VersioningService.GetApplicationById(AppId);
+        if (app.IsSuccess)
+            selectedApp = app.Value;
+        else
+            ErrorNotify(app.ErrorData?.Description);
+
+        var version = await VersioningService.GetAppVersion(AppVersionId);
+        if (version.IsSuccess)
+        {
+            IsProduction = version.Value?.IsProduction ?? false;
+            selectedAppVersion = version.Value;
+        }
+        else
+            ErrorNotify(version.ErrorData?.Description);
+
+        var compatibleApps = await VersioningService.GetCompatibilityApplications(AppVersionId);
+        if (compatibleApps.IsSuccess)
+            CompatibleApplications = compatibleApps.Value?.ToList().ConvertAll(Mappers.MapApplication_to_ApplicationView) ?? [];
+        else
+            ErrorNotify(compatibleApps.ErrorData?.Description);
+
+        var appsUsingThisVersion = await VersioningService.GetOtherAppsUsingThisVersion(AppVersionId);
+        if (appsUsingThisVersion.IsSuccess)
+        {
+            AppsUsingThisVersion = new();
+            AppsUsingThisVersion.AddRange(appsUsingThisVersion.Value?.ToList().ConvertAll(Mappers.MapApplication_to_ApplicationView) ?? []);
+        }
+        else
+            ErrorNotify(appsUsingThisVersion.ErrorData?.Description);
+
+        await base.OnInitializedAsync();
+    }
+
+    private async Task DeleteAppButtonClick(ApplicationDTO app)
+    {
+        await DeleteApp.InvokeAsync(app);
+    }
+
+    private async Task ShowGraph(int appId, int versionId)
+    {
+        await dialogService.OpenAsync<VersioningAppBlazorServer.Components.VersioningComp.VersionGraph>(
+            title: "",
+            new Dictionary<string, object>(){
+                {"AppId", appId },
+                { "AppVersionId", versionId}
+                                                                                                                                                },
+            options: new DialogOptions
+                {
+                    ShowTitle = false,
+                    Resizable = false,
+                    Draggable = false,
+                    Width = "auto",
+                    Height = "auto",
+                    CloseDialogOnOverlayClick = true
+                });
+
+    }
+
+    private async Task DeleteAppVersionButtonClick(ApplicationDTO app, AppVersionDTO appVersion)
+    {
+        await DeleteAppVersion.InvokeAsync(new DeleteAppVersion()
+            {
+                App = app,
+                Version = appVersion
+            });
+    }
+
+    private async Task SetProductionVersion(bool value)
+    {
+        if (selectedAppVersion == null)
+            return;
+
+        if (value)
+        {
+            IsProduction = ValidateSetProdVersion();
+            if (!IsProduction)
+                return;
+        }
+
+        //IsProduction = selectedAppVersion.IsProduction;
+        IsProduction = value;
+
+        var confirm = await ConfirmYesNo($"Are you sure you want to assign/remove the production flag for version " +
+        $"{selectedAppVersion?.Version} of application {selectedApp?.Name}? The previous version with this flag set will be changed to false.");
+        if (!confirm)
+            return;
+
+        if (selectedAppVersion != null)
+            selectedAppVersion.IsProduction = value;
+
+        var result = await VersioningService.SetVersionToProduction(selectedApp!.Id, selectedAppVersion!.Id, value);
+        if (result.HasFailed)
+            ErrorNotify(result.ErrorData?.Description);
+
+        var app = await VersioningService.GetApplicationById(selectedApp!.Id);
+        if (app.IsSuccess)
+            selectedApp = app.Value;
+    }
+
+    private bool ValidateSetProdVersion()
+    {
+        foreach (var compApps in CompatibleApplications)
+        {
+            foreach (var ver in compApps.Versions)
+            {
+                var selectedVerCompatibleWith = selectedAppVersion?.Compatibilities.FirstOrDefault(x => x.CompatibleWithVersionId == ver.Id);
+                if (selectedVerCompatibleWith != null && !ver.IsProduction)
+                {
+                    ErrorNotify($"Application {compApps.Name} version {ver.Version} are not production,"
+                       + $" first set production to application {compApps.Name} version {ver.Version}", 15000);
+
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    private async Task<bool> ConfirmYesNo(string text)
+    {
+        var dialogResult = await dialogService.Confirm(text, "Are you sure?", new ConfirmOptions()
+            {
+                OkButtonText = "Yes",
+                CancelButtonText = "No",
+                ShowClose = false
+            });
+        if (!dialogResult ?? false)
+            return false;
+        return true;
+    }
+
+    private void ErrorNotify(string? error, int duration = 3000)
+    {
+        NotificationService.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Error,
+                Detail = error ?? "NO_ERROR_FIX_ME",
+                Duration = duration
+            });
+    }
+}
