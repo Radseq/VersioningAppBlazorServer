@@ -9,64 +9,78 @@
 
 <PageBody>
     <Body>
-        <RadzenRow>
-            <RadzenColumn Size="12">
+        @if (Applications?.Count() > 0)
+        {
+            <RadzenRow>
+                <RadzenColumn Size="12">
+                    <RadzenDataGrid Data="@Applications" AllowVirtualization="true"
+                                    AllowFiltering="true" FilterPopupRenderMode="PopupRenderMode.OnDemand"
+                                    FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
+                                    LogicalFilterOperator="LogicalFilterOperator.Or"
+                                    TItem="AppWithLastAndProductVersion"
+                                    AllowSorting="true" ColumnWidth="100px">
+                        <Columns>
+                            <RadzenDataGridColumn Property="@nameof(AppWithLastAndProductVersion.Name)" Title="Name" MinWidth="170px">
+                                <Template Context="AppWithLastAndProductVersion">
+                                    @AppWithLastAndProductVersion.Name
+                                </Template>
+                            </RadzenDataGridColumn>
+                            <RadzenDataGridColumn Property="@nameof(AppWithLastAndProductVersion.Description)" Title="Description" MinWidth="170px">
+                                <Template Context="AppWithLastAndProductVersion">
+                                    @AppWithLastAndProductVersion.Description
+                                </Template>
+                            </RadzenDataGridColumn>
+                            <RadzenDataGridColumn Title="Last Version" MinWidth="170px">
+                                <Template Context="app">
+                                    @if (app.LastVersion != null)
+                                    {
+                                        <RadzenButton Text="@app.LastVersion.Version" Click="@(() => NavigateToVersion(app.LastVersion!))" />
+                                    }
+                                </Template>
+                            </RadzenDataGridColumn>
 
-                <RadzenDataGrid Data="@Applications" AllowVirtualization="true"
-                                AllowFiltering="true" FilterPopupRenderMode="PopupRenderMode.OnDemand"
-                                FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
-                                LogicalFilterOperator="LogicalFilterOperator.Or"
-                                TItem="ApplicationDTO"
-                                AllowSorting="true" ColumnWidth="100px">
-                    <Columns>
-                        <RadzenDataGridColumn Property="@nameof(ApplicationDTO.Name)" Title="Name" MinWidth="170px">
-                            <Template Context="ApplicationDTO">
-                                @ApplicationDTO.Name
-                            </Template>
-                        </RadzenDataGridColumn>
-                        <RadzenDataGridColumn Property="@nameof(ApplicationDTO.Description)" Title="Description" MinWidth="170px">
-                            <Template Context="ApplicationDTO">
-                                @ApplicationDTO.Description
-                            </Template>
-                        </RadzenDataGridColumn>
-                        <RadzenDataGridColumn Title="Last Version" MinWidth="170px">
-                            <Template Context="app">
-                                @{
-                                    var lastVersion = app.Versions.LastOrDefault();
-                                }
-                                @if (lastVersion != null)
-                                {
-                                    <RadzenButton Text="@lastVersion.Version" Click="@(() => NavigateToVersion(lastVersion))" />
-                                }
-                            </Template>
-                        </RadzenDataGridColumn>
-
-                        <RadzenDataGridColumn Title="Production Version" MinWidth="170px">
-                            <Template Context="app">
-                                @{
-                                    var prodVersion = app.Versions.FirstOrDefault(x => x.IsProduction);
-                                }
-                                @if (prodVersion != null)
-                                {
-                                    <RadzenButton Text="@prodVersion.Version" Click="@(() => NavigateToVersion(prodVersion))" />
-                                }
-                            </Template>
-                        </RadzenDataGridColumn>
-                    </Columns>
-                </RadzenDataGrid>
-            </RadzenColumn>
-        </RadzenRow>
+                            <RadzenDataGridColumn Title="Production Version" MinWidth="170px">
+                                <Template Context="app">
+                                    @if (app.ProductionVersion != null)
+                                    {
+                                        <RadzenButton Text="@app.ProductionVersion.Version" Click="@(() => NavigateToVersion(app.ProductionVersion))" />
+                                    }
+                                </Template>
+                            </RadzenDataGridColumn>
+                        </Columns>
+                    </RadzenDataGrid>
+                </RadzenColumn>
+            </RadzenRow>
+        }
     </Body>
 </PageBody>
 
 @code {
-    private List<ApplicationDTO> Applications { get; set; } = [];
+    private List<AppWithLastAndProductVersion>? Applications { get; set; } = null;
 
     protected override async Task OnInitializedAsync()
     {
         var applications = await VersioningService.GetAllApplications();
         if (applications.IsSuccess)
-            Applications = applications.Value?.ToList() ?? [];
+        {
+            var orderedAppsByName = applications.Value?.OrderBy(x => x.Name).ToList().ConvertAll(Copies.Copy);
+            Applications = new List<AppWithLastAndProductVersion>();
+            foreach (var item in orderedAppsByName ?? [])
+            {
+                var lastVersion = item.Versions.OrderByDescending(x => x.Id).ElementAtOrDefault(0); // lastordefault seems have bug when browser back to this page
+                var prodVersion = item.Versions.FirstOrDefault(x => x.IsProduction == true);
+
+                Applications.Add(new AppWithLastAndProductVersion()
+                    {
+                        LastVersion = lastVersion,
+                        ProductionVersion = prodVersion,
+                        Description = item.Description,
+                        Id = item.Id,
+                        Name = item.Name,
+                        Versions = item.Versions
+                    });
+            }
+        }
         else
         {
             NotificationService.Notify(new NotificationMessage
