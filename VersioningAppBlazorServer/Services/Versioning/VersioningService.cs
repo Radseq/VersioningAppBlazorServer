@@ -6,6 +6,7 @@ using VersioningAppBlazorServer.Models.UI;
 using VersioningAppBlazorServer.Utils;
 using ReturnTypeWrapper;
 using EFDataAccessLib.Models;
+using VersioningAppBlazorServer.Components.VersioningComp;
 
 namespace VersioningAppBlazorServer.Services.Versioning;
 
@@ -87,7 +88,8 @@ public class VersioningService : IVersioningService
         }
     }
 
-    public async Task<MessageResult<int>> AddNewVersion(AppVersionDTO appVersion, bool doInheritCompatibilityOfPreviousVersions)
+    public async Task<MessageResult<int>> AddNewVersion(AppVersionDTO appVersion, bool doInheritCompatibilityOfPreviousVersions,
+        bool updateThisVersionToAllOtherAppsUsingPreviousVersion)
     {
         try
         {
@@ -115,12 +117,11 @@ public class VersioningService : IVersioningService
             await databaseTransactionOperation.SaveAsync();
 
             var inheritAppCompatibilitiesVersionList = new List<int>();
+            var previousVersionId = await repoAppVersion.MaxId(appVersion.AppId);
 
             // inherit
             if (doInheritCompatibilityOfPreviousVersions)
             {
-                var previousVersionId = await repoAppVersion.MaxId(appVersion.AppId);
-
                 var getCompatibilitiesPreviousVersion = await repoAppCompatibility.GetWhereAsync(x => x.SourceVersionId == previousVersionId);
 
                 var toAddCompatibilities = appVersion.Compatibilities.Select(x => x.CompatibleWithVersionId).ToList();
@@ -165,6 +166,18 @@ public class VersioningService : IVersioningService
             }
 
             await databaseTransactionOperation.SaveAsync();
+
+            if (updateThisVersionToAllOtherAppsUsingPreviousVersion)
+            {
+                var getCompatibilitiesPreviousVersion = await repoAppCompatibility.GetWhereAsync(x => x.TargetVersionId == previousVersionId);
+                foreach (var item in getCompatibilitiesPreviousVersion ?? [])
+                {
+                    item.TargetVersionId = newAppVersion.Id;
+                    repoAppCompatibility.Modify(item);
+                }
+                if (getCompatibilitiesPreviousVersion?.Count() > 0)
+                    await databaseTransactionOperation.SaveAsync();
+            }
 
             await databaseTransactionOperation.EndAsync();
 
@@ -263,6 +276,22 @@ public class VersioningService : IVersioningService
             var appVersion = await repoAppVersion.GetByIdAsync(appVersionId);
             if (appVersion == null)
                 return MessageResult.FailureErrorNumberExtract(ErrorList._302);
+
+            var appVersions = await repoAppVersion.GetWhereAsync(x => x.ApplicationId == appVersion.ApplicationId);
+
+            var appVersionsDesc = appVersions.OrderByDescending(x => x.Id);
+            if (appVersionsDesc.Count() > 1)
+            {
+                var getCompatibilitiesPreviousVersion = await repoAppCompatibility.GetWhereAsync(x => x.TargetVersionId == appVersionId);
+                foreach (var item in getCompatibilitiesPreviousVersion ?? [])
+                {
+                    item.TargetVersionId = appVersionsDesc.ElementAt(1).Id;
+                    repoAppCompatibility.Modify(item);
+                }
+            }
+
+            await databaseTransactionOperation.SaveAsync();
+
 
             repoAppCompatibility.RemoveRange(appVersion.CompatibilitySourceVersions);
             repoAppCompatibility.RemoveRange(appVersion.CompatibilityTargetVersions);

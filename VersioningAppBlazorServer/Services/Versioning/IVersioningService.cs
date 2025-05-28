@@ -7,7 +7,8 @@ namespace VersioningAppBlazorServer.Services.Versioning;
 public interface IVersioningService
 {
     Task<MessageResult<KeyValuePair<int, int>>> AddNewApplication(ApplicationDTO application);
-    Task<MessageResult<int>> AddNewVersion(AppVersionDTO appVersion, bool doInheritCompatibilityOfPreviousVersions);
+    Task<MessageResult<int>> AddNewVersion(AppVersionDTO appVersion, 
+        bool doInheritCompatibilityOfPreviousVersions, bool updateThisVersionToAllOtherAppsUsingPreviousVersion);
     Task<MessageResult> AddNewVersionCompatibilities(int versionId, List<AppCompatibilityDTO> compatibilities);
     Task<MessageResult<ApplicationDTO>> GetApplicationById(int id);
     Task<MessageResult<List<DropDownItem>>> GetAllApplicationsNames();

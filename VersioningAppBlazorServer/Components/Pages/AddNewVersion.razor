@@ -41,6 +41,11 @@
                                         TValue="bool" />
                         <RadzenLabel Text="Do inherit compatibility of previous versions" Component="DoInheritCheckBox" class="rz-ms-2" />
                     </RadzenRow>
+                    <RadzenRow>
+                        <RadzenCheckBox @bind-Value=@updateThisVersionToAllOtherAppsUsingPreviousVersion Name="UpdateVersions" Disabled="disabledUpdateCheckBox"
+                                        TValue="bool" Change="(arg)=>OnChangeOtherAppsToUsing(arg)" />
+                        <RadzenLabel Text=" Update this version to all other applications that use the previous version" Component="UpdateVersions" class="rz-ms-2" />
+                    </RadzenRow>
 
                 }
                 @if (MinMajor.HasValue && MinMinor.HasValue && MinPatch.HasValue)
@@ -49,6 +54,8 @@
                                                                                     MinMajor="MinMajor.Value"
                                                                                     MinMinor="MinMinor.Value"
                                                                                     MinPatch="MinPatch.Value"
+                                                                                    MajorVersionChanged="MajorVersionChanged"
+                                                                                    OnChangeIsProductionCheckbox="OnIsProductionFlagChanged"
                                                                                     @ref=NewVersionComp />
                 }
                 @if (selectedApp != null)
@@ -76,6 +83,46 @@
     private int? MinPatch { get; set; } = null;
 
     private bool DoInheritCompatibilityOfPreviousVersions { get; set; } = true;
+    private bool updateThisVersionToAllOtherAppsUsingPreviousVersion { get; set; } = false;
+    private bool disabledUpdateCheckBox { get; set; } = false;
+
+    private void MajorVersionChanged(int major)
+    {
+        if (major != MinMajor)
+        {
+            updateThisVersionToAllOtherAppsUsingPreviousVersion = false;
+            disabledUpdateCheckBox = true;
+        }
+        else
+        {
+            disabledUpdateCheckBox = false;
+        }
+        StateHasChanged();
+    }
+
+    private void OnChangeOtherAppsToUsing(bool update)
+    {
+        var NewAppVersionCopy = NewVersionComp?.GetVersionDTO();
+        if (NewAppVersionCopy != null && NewAppVersionCopy.IsProduction)
+        {
+            updateThisVersionToAllOtherAppsUsingPreviousVersion = false;
+            disabledUpdateCheckBox = true;
+        }
+    }
+
+    private void OnIsProductionFlagChanged(bool isProduction)
+    {
+        if (isProduction)
+        {
+            updateThisVersionToAllOtherAppsUsingPreviousVersion = false;
+            disabledUpdateCheckBox = true;
+        }
+        else
+        {
+            disabledUpdateCheckBox = false;
+        }
+        StateHasChanged();
+    }
 
     private async Task OnChangeApp(object value)
     {
@@ -133,7 +180,8 @@
                 return;
             }
 
-            var newVersionResult = await VersioningService.AddNewVersion(NewAppVersion, DoInheritCompatibilityOfPreviousVersions);
+            var newVersionResult = await VersioningService.AddNewVersion(NewAppVersion,
+                DoInheritCompatibilityOfPreviousVersions, updateThisVersionToAllOtherAppsUsingPreviousVersion);
             if (newVersionResult.IsSuccess)
             {
                 Navigation.NavigateTo($"AppVersionView/{NewAppVersion.AppId}/{newVersionResult.Value}");

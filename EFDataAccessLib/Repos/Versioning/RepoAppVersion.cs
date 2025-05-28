@@ -72,7 +72,7 @@ public class RepoAppVersion : IRepoAppVersion
 
     public async Task<int> MaxId(int appId)
     {
-        return await dataContext.AppVersions.MaxAsync(u => u.Id);
+        return await dataContext.AppVersions.Where(s => s.ApplicationId == appId).MaxAsync(u => u.Id);
     }
 
     public async Task<List<AppVersion>> GetLastVersionsUntil(int appId, int versionId, int count)

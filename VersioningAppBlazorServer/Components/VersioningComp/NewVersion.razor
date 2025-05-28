@@ -1,6 +1,6 @@
 ﻿<RadzenRow>
     <RadzenCheckBox Value="@NewAppVersion.IsProduction"
-                    ValueChanged="@(v => NewAppVersion.IsProduction = v)"
+                    ValueChanged="@(v => OnChangeIsProduction(v))"
                     Name="IsProductionVersionCheckBox" TValue="bool" />
     <RadzenLabel Text="Is production version(old versions will set to false)"
                  Component="IsProductionVersionCheckBox" class="rz-ms-2" />
@@ -9,6 +9,7 @@
 <VersioningAppBlazorServer.Components.VersioningComp.VersionNumeric MajorMin="MinMajor"
                                                                     MinorMin="MinMinor"
                                                                     PatchMin="MinPatch"
+                                                                    OnNumericMajorSet="MajorVersionChanged"
                                                                     @ref="VersionNumericRef" />
 
 <RadzenRow>
@@ -19,7 +20,7 @@
                             ValueChanged="@(v => NewAppVersion.Description = v)"
                             ValueExpression="@(() => NewAppVersion.Description)"
                             @oninput="@(args => NewAppVersion.Description = $"{args.Value}")"
-                            MaxLength="@maxLength" Style="width: 100%" aria-label="changelog here" />
+                            MaxLength="@maxLength" Style="width: 100%; height: 200px" aria-label="changelog here" />
             <span style="font-style: italic;">@($"{NewAppVersion.Description.Length}/{maxLength}")</span>
         </RadzenCard>
     </RadzenColumn>
@@ -41,11 +42,22 @@
     [Parameter]
     public int MinPatch { get; set; } = 0;
 
+    [Parameter]
+    public Action<int>? MajorVersionChanged { get; set; }
+    [Parameter]
+    public Action<bool>? OnChangeIsProductionCheckbox { get; set; }
+
     private const int maxLength = 2000;
 
     private VersioningAppBlazorServer.Components.VersioningComp.VersionNumeric? VersionNumericRef;
 
     private AppVersionDTO NewAppVersion { get; set; } = new();
+
+    private void OnChangeIsProduction(bool isProduction)
+    {
+        NewAppVersion.IsProduction = isProduction;
+        OnChangeIsProductionCheckbox?.Invoke(isProduction);
+    }
 
     public AppVersionDTO GetVersionDTO()
     {
@@ -56,6 +68,7 @@
             NewAppVersion.Minor = version.Value.Minor;
             NewAppVersion.Patch = version.Value.Patch;
         }
+
         return Copies.Copy(NewAppVersion);
     }
 

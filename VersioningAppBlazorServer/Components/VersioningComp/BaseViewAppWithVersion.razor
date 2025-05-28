@@ -5,11 +5,29 @@
 
 @if (selectedApp != null && selectedAppVersion != null)
 {
+    <RadzenRow AlignItems="AlignItems.Center"
+               JustifyContent="JustifyContent.Center" Gap="0.5rem" class="rz-pb-md-4 rz-pb-sm-2">
+        <RadzenColumn Size="12" SizeMD="12" SizeLG="6">
+            <RadzenCard>
+                <RadzenText TextStyle="TextStyle.Subtitle2" TagName="TagName.H3">App description</RadzenText>
+                <RadzenTextArea @bind-Value=@selectedApp.Description Disabled Style="width: 100%" aria-label="application note here" />
+            </RadzenCard>
+        </RadzenColumn>
+        <RadzenColumn Size="12" SizeMD="12" SizeLG="6">
+            <RadzenCard>
+                <RadzenText TextStyle="TextStyle.Subtitle2" TagName="TagName.H3">Changelog of version</RadzenText>
+                <RadzenCard Style="padding: 1rem; max-height: 30vh; overflow-y: auto;">
+                    <VersioningAppBlazorServer.Components.VersioningComp.ChangelogRenderer Text="@selectedAppVersion.Description" />
+                </RadzenCard>
+            </RadzenCard>
+        </RadzenColumn>
+    </RadzenRow>
+
     <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center"
                  JustifyContent="JustifyContent.Center" Gap="0.5rem" class="rz-pb-md-4 rz-pb-sm-2">
         <RadzenButton ButtonStyle="ButtonStyle.Danger" Text="Delete application"
                       Variant="Variant.Flat" Click="()=>DeleteAppButtonClick(selectedApp)" />
-        <RadzenButton ButtonStyle="ButtonStyle.Danger" Text="Delete selected version"
+        <RadzenButton ButtonStyle="ButtonStyle.Danger" Text="@($"Delete version {selectedAppVersion.Version}")"
                       Variant="Variant.Flat" Click="()=>DeleteAppVersionButtonClick(selectedApp, selectedAppVersion)" />
         <RadzenCheckBox @bind-Value=@IsProduction Name="IsProductionVersionCheckBox" TValue="bool"
                         Change="(arg)=>SetProductionVersion(arg)" />
@@ -183,7 +201,7 @@
             new Dictionary<string, object>(){
                 {"AppId", appId },
                 { "AppVersionId", versionId}
-                                                                                                                                                },
+                                                                                                                                                    },
             options: new DialogOptions
                 {
                     ShowTitle = false,
