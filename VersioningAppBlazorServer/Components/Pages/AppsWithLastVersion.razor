@@ -59,6 +59,8 @@
 @code {
     private List<AppWithLastAndProductVersion>? Applications { get; set; } = null;
 
+    private int rowIndexToBgColor { get; set; } = 0;
+
     protected override async Task OnInitializedAsync()
     {
         var applications = await VersioningService.GetAllApplications();
@@ -98,7 +100,13 @@
     {
         if (args.Data.ProductionVersion != null && args.Data.LastVersion?.Id != args.Data.ProductionVersion?.Id)
         {
-            args.Attributes.Add("style", $"background-color: var(--rz-danger-lighter);");
+            ++rowIndexToBgColor;
+            if (rowIndexToBgColor % 2 == 0)
+            {
+                args.Attributes.Add("style", $"background-color: var(--rz-danger-lighter);");
+            }
+            else
+                args.Attributes.Add("style", $"background-color: #e7a5a5");
         }
     }
 
