@@ -14,11 +14,12 @@
             <RadzenRow>
                 <RadzenColumn Size="12">
                     <RadzenDataGrid Data="@Applications" AllowVirtualization="true"
+                                    AllowAlternatingRows="false"
                                     AllowFiltering="true" FilterPopupRenderMode="PopupRenderMode.OnDemand"
                                     FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
                                     LogicalFilterOperator="LogicalFilterOperator.Or"
                                     TItem="AppWithLastAndProductVersion"
-                                    AllowSorting="true" ColumnWidth="100px">
+                                    AllowSorting="true" ColumnWidth="100px" RowRender="OnRowRender">
                         <Columns>
                             <RadzenDataGridColumn Property="@nameof(AppWithLastAndProductVersion.Name)" Title="Name" MinWidth="170px">
                                 <Template Context="AppWithLastAndProductVersion">
@@ -91,6 +92,14 @@
                 });
         }
         await base.OnInitializedAsync();
+    }
+
+    void OnRowRender(RowRenderEventArgs<AppWithLastAndProductVersion> args)
+    {
+        if (args.Data.ProductionVersion != null && args.Data.LastVersion?.Id != args.Data.ProductionVersion?.Id)
+        {
+            args.Attributes.Add("style", $"background-color: var(--rz-danger-lighter);");
+        }
     }
 
     private void NavigateToVersion(AppVersionDTO versionDto)
