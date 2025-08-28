@@ -120,7 +120,7 @@ public class VersioningService : IVersioningService
             var previousVersionId = await repoAppVersion.MaxId(appVersion.AppId);
 
             // inherit
-            if (doInheritCompatibilityOfPreviousVersions)
+            if (doInheritCompatibilityOfPreviousVersions && (previousVersionId.HasValue && previousVersionId.Value > 0))
             {
                 var getCompatibilitiesPreviousVersion = await repoAppCompatibility.GetWhereAsync(x => x.SourceVersionId == previousVersionId);
 
@@ -167,7 +167,7 @@ public class VersioningService : IVersioningService
 
             await databaseTransactionOperation.SaveAsync();
 
-            if (updateThisVersionToAllOtherAppsUsingPreviousVersion)
+            if (updateThisVersionToAllOtherAppsUsingPreviousVersion && (previousVersionId.HasValue && previousVersionId.Value > 0))
             {
                 var getCompatibilitiesPreviousVersion = await repoAppCompatibility.GetWhereAsync(x => x.TargetVersionId == previousVersionId);
                 foreach (var item in getCompatibilitiesPreviousVersion ?? [])

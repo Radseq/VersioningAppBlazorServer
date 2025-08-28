@@ -70,9 +70,14 @@ public class RepoAppVersion : IRepoAppVersion
         dataContext.AppVersions.RemoveRange(entities);
     }
 
-    public async Task<int> MaxId(int appId)
+    public async Task<int?> MaxId(int appId)
     {
-        return await dataContext.AppVersions.Where(s => s.ApplicationId == appId).MaxAsync(u => u.Id);
+        var versions = await dataContext.AppVersions.Where(x => x.AppId == appId).ToListAsync();
+        if (versions.Count > 0)
+        {
+            return versions.Max(x => x.Id);
+        }
+        return null;
     }
 
     public async Task<List<AppVersion>> GetLastVersionsUntil(int appId, int versionId, int count)
